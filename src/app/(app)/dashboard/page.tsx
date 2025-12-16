@@ -117,9 +117,9 @@ export default function DashboardPage() {
   }, [userLeagues]);
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
       {/* Welcome Header */}
-      <div className="flex flex-col gap-4 px-4 lg:px-6">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">
             Welcome back, {userName}!
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       )}
 
       {/* Leagues Table Section */}
-      <div className="px-4 lg:px-6">
+      <div>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold">My Leagues</h2>
@@ -190,7 +190,7 @@ export default function DashboardPage() {
 
 function SectionCards({ stats }: { stats: StatCard[] }) {
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 sm:grid-cols-2 lg:grid-cols-4">
       {stats.map((stat, index) => {
         const isPositive = stat.change >= 0;
         const TrendIcon = isPositive ? TrendingUp : TrendingDown;

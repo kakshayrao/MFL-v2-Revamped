@@ -75,13 +75,13 @@ export default function AppLayout({
           <AppSidebar user={user} className="hidden md:flex" />
 
           {/* Main Content Area */}
-          <SidebarInset>
+          <SidebarInset className="flex flex-col h-screen">
             {/* Header */}
             <AppHeader />
 
             {/* Page Content */}
-            <main className="flex-1 overflow-auto pb-20 md:pb-0">
-              <div className="p-4 lg:p-6">{children}</div>
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+              {children}
             </main>
           </SidebarInset>
 

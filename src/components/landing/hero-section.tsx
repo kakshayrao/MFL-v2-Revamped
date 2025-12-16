@@ -69,17 +69,17 @@ export function HeroSection() {
             </div>
 
             {/* Feature pills */}
-            <div className="flex flex-wrap justify-center lg:justify-start gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-sm">
-                <Zap className="size-3.5" />
+            <div className="flex flex-wrap justify-center lg:justify-start gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-sm whitespace-nowrap">
+                <Zap className="size-3.5 flex-shrink-0" />
                 <span className="font-medium">Setup in minutes</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-sm">
-                <Users className="size-3.5" />
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-sm whitespace-nowrap">
+                <Users className="size-3.5 flex-shrink-0" />
                 <span className="font-medium">Team leaderboards</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-sm">
-                <TrendingUp className="size-3.5" />
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-sm whitespace-nowrap">
+                <TrendingUp className="size-3.5 flex-shrink-0" />
                 <span className="font-medium">Live tracking</span>
               </div>
             </div>
