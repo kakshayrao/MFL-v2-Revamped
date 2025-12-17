@@ -142,21 +142,9 @@ const authConfig = {
       return false;
     },
   },
-  events: {
-    async signOut() {
-      // Cookies will be cleared automatically
-    },
-  },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
+  pages: {
+    signIn: '/login',
+    error: '/login',
   },
 };
 
@@ -166,5 +154,3 @@ export { auth, signIn, signOut };
 
 // Export options for getServerSession consumers (API routes, etc.)
 export const authOptions = authConfig as any;
-
-
