@@ -1,2 +1,6 @@
 onlyBuiltDependencies:
+  - esbuild
+  - sharp
   - supabase
+  - tesseract.js
+  - unrs-resolver
