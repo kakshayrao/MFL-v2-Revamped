@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 'use client';
 
 import * as React from 'react';
@@ -56,6 +54,9 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
+
+//Config
+export const dynamic = "force-dynamic";
 
 // ============================================================================
 // Types
