@@ -11,8 +11,7 @@ import { AppHeader } from '@/components/app/app-header';
 import { MobileBottomTabs } from '@/components/app/mobile-bottom-tabs';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
-//config
-export const dynamic = "force-dynamic";
+
 
 // ============================================================================
 // AppLayout Component

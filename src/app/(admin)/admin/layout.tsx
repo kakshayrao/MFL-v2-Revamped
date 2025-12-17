@@ -9,8 +9,6 @@ import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { SiteHeader } from "@/components/dashboard/site-header";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
-//config
-export const dynamic = "force-dynamic";
 
 // ============================================================================
 // AdminLayout Component
