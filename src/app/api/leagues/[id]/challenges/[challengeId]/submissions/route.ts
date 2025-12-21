@@ -159,15 +159,66 @@ export async function POST(
       return buildError('proofUrl is required', 400);
     }
 
+    // Fetch challenge details to know challenge type and get member's team/subteam
+    const { data: challengeData, error: challengeError } = await supabase
+      .from('leagueschallenges')
+      .select('id, challenge_type, league_id')
+      .eq('id', challengeId)
+      .single();
+
+    if (challengeError || !challengeData) {
+      return buildError('Failed to fetch challenge details', 500);
+    }
+
+    // Fetch member's team info
+    const { data: memberData, error: memberError } = await supabase
+      .from('leaguemembers')
+      .select('team_id')
+      .eq('league_member_id', membership.leagueMemberId)
+      .single();
+
+    if (memberError) {
+      console.error('Error fetching member team:', memberError);
+      return buildError('Failed to fetch member team info', 500);
+    }
+
+    // For team challenges, verify the member's team belongs to this league
+    let validTeamId: string | null = null;
+    if (challengeData.challenge_type === 'team' && memberData?.team_id) {
+      const { data: teamLeague } = await supabase
+        .from('teamleagues')
+        .select('team_id')
+        .eq('team_id', memberData.team_id)
+        .eq('league_id', challengeData.league_id)
+        .maybeSingle();
+
+      if (teamLeague) {
+        validTeamId = memberData.team_id;
+      }
+    }
+
+    // Build submission payload with team/subteam based on challenge type
+    const submissionPayload: Record<string, any> = {
+      league_challenge_id: challengeId,
+      league_member_id: membership.leagueMemberId,
+      proof_url: proofUrl,
+      status: 'pending',
+      awarded_points: awardedPoints ?? null,
+      team_id: null,
+      sub_team_id: null,
+    };
+
+    // Set team_id for team challenges (only if verified via teamleagues)
+    if (challengeData.challenge_type === 'team' && validTeamId) {
+      submissionPayload.team_id = validTeamId;
+    }
+    // For sub_team challenges, we'd need additional logic to find the user's subteam
+    // This would be set by the client or determined by captain assignment
+    // For now, leave as null and handle in review process
+
     const { data, error } = await supabase
       .from('challenge_submissions')
-      .insert({
-        league_challenge_id: challengeId,
-        league_member_id: membership.leagueMemberId,
-        proof_url: proofUrl,
-        status: 'pending',
-        awarded_points: awardedPoints ?? null,
-      })
+      .insert(submissionPayload)
       .select()
       .single();
 

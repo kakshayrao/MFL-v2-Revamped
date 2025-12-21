@@ -79,12 +79,14 @@ export async function GET(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
 
-    // Use league dates as default if not provided
+    // Only use date filtering if BOTH startDate and endDate are explicitly provided
+    // Otherwise use league's start and end dates for the overall view
+    const hasDateFilter = startDate && endDate;
     const filterStartDate = startDate || league.start_date;
-    const filterEndDate = endDate || new Date().toISOString().split('T')[0];
+    const filterEndDate = endDate || league.end_date;
 
     // =========================================================================
-    // Get all teams in the league
+    // Get all teams in the league via teamleagues
     // =========================================================================
     const { data: teams, error: teamsError } = await supabase
       .from('teamleagues')
@@ -98,6 +100,9 @@ export async function GET(
       console.error('Error fetching teams:', teamsError);
       return NextResponse.json({ error: 'Failed to fetch teams' }, { status: 500 });
     }
+
+    // Create a set of valid team IDs for this league (for validation)
+    const validTeamIds = new Set((teams || []).map((t) => t.team_id as string));
 
     // =========================================================================
     // Get all league members with team assignment
@@ -145,11 +150,14 @@ export async function GET(
       .select('id, league_member_id, date, type, rr_value, status')
       .in('league_member_id', memberIds);
 
-    if (filterStartDate) {
-      entriesQuery = entriesQuery.gte('date', filterStartDate);
-    }
-    if (filterEndDate) {
-      entriesQuery = entriesQuery.lte('date', filterEndDate);
+    // Only apply date filtering if the user explicitly provided dates
+    if (hasDateFilter) {
+      if (startDate) {
+        entriesQuery = entriesQuery.gte('date', startDate);
+      }
+      if (endDate) {
+        entriesQuery = entriesQuery.lte('date', endDate);
+      }
     }
 
     const { data: entries, error: entriesError } = await entriesQuery;
@@ -160,7 +168,96 @@ export async function GET(
     }
 
     // =========================================================================
-    // Get special challenge bonuses for teams
+    // Get league challenge submissions with points
+    // =========================================================================
+    const { data: challengeSubmissions, error: challengeSubmissionsError } = await supabase
+      .from('challenge_submissions')
+      .select(`
+        id,
+        league_member_id,
+        league_challenge_id,
+        team_id,
+        sub_team_id,
+        status,
+        created_at,
+        awarded_points,
+        leagueschallenges(
+          id,
+          name,
+          total_points,
+          challenge_type,
+          start_date,
+          end_date,
+          league_id
+        )
+      `)
+      .eq('status', 'approved');
+
+    // Filter to only this league's challenges
+    const leagueSubmissions = (challengeSubmissions || []).filter((sub) => {
+      const challenge = (sub.leagueschallenges as any);
+      return challenge && challenge.league_id === leagueId;
+    });
+
+    if (challengeSubmissionsError) {
+      console.error('Error fetching challenge submissions:', challengeSubmissionsError);
+      // Continue without challenge points
+    }
+
+    // Calculate challenge points by team and individual within date range
+    const teamChallengePoints = new Map<string, number>();
+    const memberChallengePoints = new Map<string, number>();
+
+    (leagueSubmissions || []).forEach((sub) => {
+      const challenge = (sub.leagueschallenges as any);
+      if (!challenge) return;
+
+      // Check if challenge is within date range (only if user provided dates)
+      if (hasDateFilter) {
+        const challengeDate = challenge.end_date || challenge.start_date || new Date().toISOString().split('T')[0];
+        if (challengeDate < filterStartDate || challengeDate > filterEndDate) {
+          console.debug(`Skipping challenge ${challenge.id} - date ${challengeDate} outside range ${filterStartDate} to ${filterEndDate}`);
+          return;
+        }
+      }
+
+      // Use awarded_points if available, otherwise total_points
+      const points = sub.awarded_points || challenge.total_points || 0;
+      if (points <= 0) {
+        console.debug(`Skipping challenge submission ${sub.id} - no points (awarded: ${sub.awarded_points}, total: ${challenge.total_points})`);
+        return;
+      }
+
+      // Add to individual's challenge points (all submissions contribute)
+      const memberKey = sub.league_member_id as string;
+      const current = memberChallengePoints.get(memberKey) || 0;
+      memberChallengePoints.set(memberKey, current + points);
+
+      // Handle team aggregation based on challenge type
+      if (challenge.challenge_type === 'team' && sub.team_id) {
+        // Team challenge: use team_id from submission if it belongs to this league
+        const teamKey = sub.team_id as string;
+        if (validTeamIds.has(teamKey)) {
+          const teamCurrent = teamChallengePoints.get(teamKey) || 0;
+          teamChallengePoints.set(teamKey, teamCurrent + points);
+        }
+      } else if (challenge.challenge_type === 'sub_team' && sub.sub_team_id) {
+        // Sub-team challenge: lookup team from subteam
+        // For now, we'll fetch this separately or assume it's stored
+        // TODO: Consider storing team_id on sub_team_id submissions as well for easier aggregation
+      } else if (challenge.challenge_type === 'individual') {
+        // Individual challenge: aggregate by member's team if they're on a team
+        const memberInfo = memberToUser.get(sub.league_member_id as string);
+        if (memberInfo?.team_id && validTeamIds.has(memberInfo.team_id)) {
+          const teamKey = memberInfo.team_id;
+          const teamCurrent = teamChallengePoints.get(teamKey) || 0;
+          teamChallengePoints.set(teamKey, teamCurrent + points);
+        }
+      }
+    });
+
+    // =========================================================================
+    // Get special challenge bonuses for teams (legacy)
     // =========================================================================
     let challengesQuery = supabase
       .from('specialchallengeteamscore')
@@ -179,14 +276,14 @@ export async function GET(
     }
 
     // Filter challenges by end_date within range and aggregate
-    const teamChallengeBonus = new Map<string, number>();
+    const specialChallengeBonus = new Map<string, number>();
     (challengeScores || []).forEach((cs) => {
       const challenge = cs.specialchallenges as any;
       if (challenge?.end_date) {
         const challengeEndDate = challenge.end_date;
         if (challengeEndDate >= filterStartDate && challengeEndDate <= filterEndDate) {
-          const existing = teamChallengeBonus.get(cs.team_id) || 0;
-          teamChallengeBonus.set(cs.team_id, existing + (cs.score || 0));
+          const existing = specialChallengeBonus.get(cs.team_id) || 0;
+          specialChallengeBonus.set(cs.team_id, existing + (cs.score || 0));
         }
       }
     });
@@ -260,14 +357,16 @@ export async function GET(
     // Convert to array and add challenge bonuses
     const teamRankings: TeamRanking[] = Array.from(teamStats.values())
       .map((ts) => {
-        const challengeBonus = teamChallengeBonus.get(ts.team_id) || 0;
+        const legacyBonus = specialChallengeBonus.get(ts.team_id) || 0;
+        const challengePoints = teamChallengePoints.get(ts.team_id) || 0;
+        const totalChallengeBonus = legacyBonus + challengePoints;
         return {
           rank: 0, // Will be set after sorting
           team_id: ts.team_id,
           team_name: ts.team_name,
           points: ts.points,
-          challenge_bonus: challengeBonus,
-          total_points: ts.points + challengeBonus,
+          challenge_bonus: totalChallengeBonus,
+          total_points: ts.points + totalChallengeBonus,
           avg_rr: ts.rr_count > 0 ? Math.round((ts.total_rr / ts.rr_count) * 100) / 100 : 0,
           member_count: ts.member_count,
           submission_count: ts.submission_count,
@@ -329,6 +428,14 @@ export async function GET(
       }
     });
 
+    // Add challenge points to individuals
+    (Array.from(memberChallengePoints.entries()) || []).forEach(([memberId, challengePoints]) => {
+      const individualStat = individualStats.get(memberId);
+      if (individualStat) {
+        individualStat.points += challengePoints;
+      }
+    });
+
     // Convert to array and sort
     const individualRankings: IndividualRanking[] = Array.from(individualStats.values())
       .map((is) => ({
@@ -350,6 +457,47 @@ export async function GET(
       .slice(0, 50); // Limit to top 50
 
     // =========================================================================
+    // Calculate challenge-only leaderboards
+    // =========================================================================
+    const challengeTeamRankings: TeamRanking[] = Array.from(teamStats.values())
+      .map((ts) => {
+        const challengePoints = teamChallengePoints.get(ts.team_id) || 0;
+        return {
+          rank: 0,
+          team_id: ts.team_id,
+          team_name: ts.team_name,
+          points: challengePoints,
+          challenge_bonus: 0,
+          total_points: challengePoints,
+          avg_rr: 0,
+          member_count: ts.member_count,
+          submission_count: 0,
+        };
+      })
+      .filter((t) => t.points > 0) // Only include teams with challenge points
+      .sort((a, b) => b.total_points - a.total_points)
+      .map((team, index) => ({ ...team, rank: index + 1 }));
+
+    const challengeIndividualRankings: IndividualRanking[] = Array.from(individualStats.values())
+      .map((is) => {
+        const challengePoints = memberChallengePoints.get(is.user_id) || 0;
+        return {
+          rank: 0,
+          user_id: is.user_id,
+          username: is.username,
+          team_id: is.team_id,
+          team_name: is.team_name,
+          points: challengePoints,
+          avg_rr: 0,
+          submission_count: 0,
+        };
+      })
+      .filter((i) => i.points > 0) // Only include individuals with challenge points
+      .sort((a, b) => b.points - a.points)
+      .map((individual, index) => ({ ...individual, rank: index + 1 }))
+      .slice(0, 50);
+
+    // =========================================================================
     // Return response
     // =========================================================================
     return NextResponse.json({
@@ -357,6 +505,8 @@ export async function GET(
       data: {
         teams: teamRankings,
         individuals: individualRankings,
+        challengeTeams: challengeTeamRankings,
+        challengeIndividuals: challengeIndividualRankings,
         stats,
         dateRange: {
           startDate: filterStartDate,

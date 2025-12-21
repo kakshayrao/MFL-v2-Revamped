@@ -29,6 +29,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -162,6 +169,7 @@ function TopPodium({ teams }: PodiumProps) {
 export default function LeaderboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = use(params);
   const [view, setView] = useState<'teams' | 'individuals'>('teams');
+  const [leaderboardType, setLeaderboardType] = useState<'overall' | 'challenges'>('overall');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
 
@@ -210,8 +218,8 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const teams = data?.teams || [];
-  const individuals = data?.individuals || [];
+  const teams = leaderboardType === 'overall' ? (data?.teams || []) : (data?.challengeTeams || []);
+  const individuals = leaderboardType === 'overall' ? (data?.individuals || []) : (data?.challengeIndividuals || []);
   const stats = data?.stats || { total_submissions: 0, approved: 0, pending: 0, rejected: 0, total_rr: 0 };
   const dateRange = data?.dateRange;
   const league = data?.league;
@@ -313,20 +321,33 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
       {/* Data Tables */}
       <div className="px-4 lg:px-6">
-        <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'individuals')}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <TabsList>
-              <TabsTrigger value="teams" className="gap-2">
-                <Users className="size-4" />
-                Teams ({teams.length})
-              </TabsTrigger>
-              <TabsTrigger value="individuals" className="gap-2">
-                <Medal className="size-4" />
-                Individuals ({individuals.length})
-              </TabsTrigger>
-            </TabsList>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="flex gap-4 items-center flex-wrap">
+            <Select value={leaderboardType} onValueChange={(v) => setLeaderboardType(v as 'overall' | 'challenges')}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="overall">Overall Leaderboard</SelectItem>
+                <SelectItem value="challenges">Challenge Points Only</SelectItem>
+              </SelectContent>
+            </Select>
+            <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'individuals')}>
+              <TabsList>
+                <TabsTrigger value="teams" className="gap-2">
+                  <Users className="size-4" />
+                  Teams ({teams.length})
+                </TabsTrigger>
+                <TabsTrigger value="individuals" className="gap-2">
+                  <Medal className="size-4" />
+                  Individuals ({individuals.length})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
+        </div>
 
+        <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'individuals')}>
           <TabsContent value="teams" className="mt-0">
             <LeagueTeamsTable teams={teams} />
           </TabsContent>

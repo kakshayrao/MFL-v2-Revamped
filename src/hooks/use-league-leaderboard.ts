@@ -56,6 +56,8 @@ export interface LeagueInfo {
 export interface LeaderboardData {
   teams: TeamRanking[];
   individuals: IndividualRanking[];
+  challengeTeams: TeamRanking[];
+  challengeIndividuals: IndividualRanking[];
   stats: LeaderboardStats;
   dateRange: DateRange;
   league: LeagueInfo;
