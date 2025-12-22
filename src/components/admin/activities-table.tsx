@@ -131,7 +131,7 @@ export function ActivitiesTable() {
   const [catDesc, setCatDesc] = React.useState("");
   const [catSaving, setCatSaving] = React.useState(false);
   const [catListOpen, setCatListOpen] = React.useState(false);
-  const [catList, setCatList] = React.useState<{ category_id: string; display_name: string; category_name: string; description?: string | null }[]>([]);
+  const [catList, setCatList] = React.useState<{ category_id: string; display_name: string; category_name: string; description?: string | null; usage_count?: number }[]>([]);
   const [catListLoading, setCatListLoading] = React.useState(false);
 
   // Fetch activities with hook
@@ -648,17 +648,23 @@ export function ActivitiesTable() {
             ) : catList.length === 0 ? (
               <p className="text-sm text-muted-foreground">No categories found.</p>
             ) : (
-              catList.map((c) => (
+              catList.map((c) => {
+                const inUse = (c.usage_count || 0) > 0;
+                return (
                 <div key={c.category_id} className="flex items-start justify-between gap-3 rounded-md border p-3">
                   <div className="min-w-0">
                     <div className="font-medium text-sm">{c.display_name || c.category_name}</div>
                     {c.description && (
                       <div className="text-xs text-muted-foreground line-clamp-2">{c.description}</div>
                     )}
+                    {inUse && (
+                      <div className="text-xs text-amber-600 mt-1">In use by {c.usage_count} activity(ies)</div>
+                    )}
                   </div>
                   <Button
                     variant="destructive"
                     size="sm"
+                    disabled={inUse}
                     onClick={async () => {
                       const confirmed = window.confirm(`Delete category "${c.display_name || c.category_name}"?`);
                       if (!confirmed) return;
@@ -679,7 +685,8 @@ export function ActivitiesTable() {
                     <Trash2 className="mr-2 size-4" /> Delete
                   </Button>
                 </div>
-              ))
+              );
+              })
             )}
           </div>
           <DialogFooter>

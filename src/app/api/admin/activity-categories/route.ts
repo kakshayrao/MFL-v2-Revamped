@@ -12,7 +12,19 @@ export async function GET() {
     if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const data = await getActivityCategories();
-    return NextResponse.json({ data });
+    // Add usage count for each category
+    const { getSupabaseServiceRole } = await import('@/lib/supabase/client');
+    const supabase = getSupabaseServiceRole();
+    const dataWithCounts = await Promise.all(
+      data.map(async (cat) => {
+        const { count } = await supabase
+          .from('activities')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', cat.category_id);
+        return { ...cat, usage_count: count || 0 };
+      })
+    );
+    return NextResponse.json({ data: dataWithCounts });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
   }
