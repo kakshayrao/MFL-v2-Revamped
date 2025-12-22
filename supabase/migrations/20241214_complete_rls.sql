@@ -620,6 +620,10 @@ CREATE POLICY leagueschallenges_update_host ON public.leagueschallenges
   USING (public.is_host(auth.uid(), league_id))
   WITH CHECK (public.is_host(auth.uid(), league_id));
 
+CREATE POLICY leagueschallenges_delete_host ON public.leagueschallenges
+  FOR DELETE
+  USING (public.is_host(auth.uid(), league_id));
+
 -- =====================================================================================
 -- CHALLENGE SUBTEAMS POLICIES
 -- =====================================================================================

@@ -21,7 +21,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Upload, Plus, CheckCircle2, Clock3, XCircle, Shield, FileText } from 'lucide-react';
+import { Upload, Plus, CheckCircle2, Clock3, XCircle, Shield, FileText, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import { useRole } from '@/contexts/role-context';
 import { cn } from '@/lib/utils';
@@ -144,7 +154,10 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
   const [reviewFilterSubTeamId, setReviewFilterSubTeamId] = React.useState<string>('');
   const [teams, setTeams] = React.useState<Array<{ team_id: string; team_name: string }>>([]);
   const [subTeams, setSubTeams] = React.useState<Array<{ subteam_id: string; name: string }>>([]);
-
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [challengeToDelete, setChallengeToDelete] = React.useState<Challenge | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   const fetchChallenges = React.useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -347,6 +360,36 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
       toast.error(err instanceof Error ? err.message : 'Failed to submit');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeleteClick = (challenge: Challenge) => {
+    setChallengeToDelete(challenge);
+    setDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!challengeToDelete) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/challenges/${challengeToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to delete challenge');
+      }
+
+      toast.success(`Challenge "${challengeToDelete.name}" deleted successfully`);
+      setDeleteOpen(false);
+      setChallengeToDelete(null);
+      fetchChallenges();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete challenge');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -590,15 +633,28 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
                     </Button>
                     {challenge.my_submission && submissionStatusBadge(challenge.my_submission.status)}
                     {isAdmin && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenReview(challenge)}
-                        className="ml-auto"
-                      >
-                        <Shield className="mr-2 size-4" />
-                        Review
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenReview(challenge)}
+                          className="ml-auto"
+                        >
+                          <Shield className="mr-2 size-4" />
+                          Review
+                        </Button>
+                        {isHost && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteClick(challenge)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="mr-2 size-4" />
+                            Delete
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                   {isAdmin && challenge.challenge_type === 'sub_team' && (
@@ -984,6 +1040,30 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Challenge Confirmation Dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Challenge</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>"{challengeToDelete?.name}"</strong>? This action cannot be undone. All submissions will be preserved but the challenge will no longer be available.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete Challenge'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
