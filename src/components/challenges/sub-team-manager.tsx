@@ -47,6 +47,8 @@ export function SubTeamManager({ leagueId, challengeId, teams }: SubTeamManagerP
   const [loading, setLoading] = useState(false);
   
   // Team selection
+  // "pendingTeamId" is the value in the dropdown; "selectedTeamId" is the applied filter
+  const [pendingTeamId, setPendingTeamId] = useState<string>('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   
   // Form state
@@ -57,21 +59,28 @@ export function SubTeamManager({ leagueId, challengeId, teams }: SubTeamManagerP
 
   const selectedTeam = teams.find(t => t.team_id === selectedTeamId);
 
-  // Fetch sub-teams and team members when selectedTeamId changes or dialog opens
+  // Initialize pending team when dialog opens or teams change
+  useEffect(() => {
+    if (open && teams.length > 0 && !pendingTeamId) {
+      setPendingTeamId(teams[0].team_id);
+    }
+  }, [open, teams, pendingTeamId]);
+
+  // Clear data when applied team changes
+  useEffect(() => {
+    if (selectedTeamId) {
+      setSubTeams([]);
+      setTeamMembers([]);
+    }
+  }, [selectedTeamId]);
+
+  // Fetch data when dialog opens or applied team changes
   useEffect(() => {
     if (open && selectedTeamId) {
       fetchSubTeams();
       fetchTeamMembers();
     }
   }, [open, selectedTeamId]);
-
-  // Fetch sub-teams when team selection changes (even if dialog is already open)
-  useEffect(() => {
-    if (selectedTeamId && open) {
-      console.log('fetchSubTeams triggered for team:', selectedTeamId);
-      fetchSubTeams();
-    }
-  }, [selectedTeamId]);
 
   // Also fetch team members when create dialog opens (in case team was already selected)
   useEffect(() => {
@@ -267,7 +276,8 @@ export function SubTeamManager({ leagueId, challengeId, teams }: SubTeamManagerP
           {/* Team Selector */}
           <div>
             <Label htmlFor="team-select">Select Team</Label>
-            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+            <div className="flex gap-2 items-end">
+              <Select value={pendingTeamId} onValueChange={setPendingTeamId}>
               <SelectTrigger id="team-select">
                 <SelectValue placeholder="Choose a team..." />
               </SelectTrigger>
@@ -278,7 +288,17 @@ export function SubTeamManager({ leagueId, challengeId, teams }: SubTeamManagerP
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+              </Select>
+              <Button
+                onClick={() => {
+                  // Apply filter explicitly
+                  setSelectedTeamId(pendingTeamId);
+                }}
+                disabled={!pendingTeamId}
+              >
+                Apply
+              </Button>
+            </div>
           </div>
 
           {selectedTeamId && (

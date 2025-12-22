@@ -98,7 +98,17 @@ export async function GET(
 
     const isHost = league?.created_by === session.user.id;
 
-    if (!membership && !isHost) {
+    // Check if user is Governor in this league
+    const { data: roleData } = await supabase
+      .from('assignedrolesforleague')
+      .select('roles(role_name)')
+      .eq('user_id', session.user.id)
+      .eq('league_id', leagueId);
+
+    const roleNames = (roleData || []).map((r: any) => r.roles?.role_name).filter(Boolean);
+    const isGovernor = roleNames.includes('Governor');
+
+    if (!membership && !isHost && !isGovernor) {
       return NextResponse.json(
         { error: 'You are not a member of this league' },
         { status: 403 }

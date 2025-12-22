@@ -65,10 +65,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!category_id) {
+      return NextResponse.json(
+        { error: 'Category is required' },
+        { status: 400 }
+      );
+    }
+
     const input: AdminActivityCreateInput = {
       activity_name,
       description: description || null,
-      category_id: category_id || null,
+      category_id,
     };
 
     const adminUserId = (session.user as any)?.id;

@@ -119,6 +119,16 @@ export default function LeagueActivitiesPage({
     });
   }, [data, selectedCategory, searchTerm, isAdmin]);
 
+  const sortedActivities = useMemo(() => {
+    const list = [...filteredActivities];
+    return list.sort((a, b) => {
+      const aEnabled = enabledActivityIds.has(a.activity_id) ? 1 : 0;
+      const bEnabled = enabledActivityIds.has(b.activity_id) ? 1 : 0;
+      if (aEnabled !== bEnabled) return bEnabled - aEnabled; // enabled first
+      return a.activity_name.localeCompare(b.activity_name);
+    });
+  }, [filteredActivities, enabledActivityIds]);
+
   const handleToggle = async (activityId: string, enable: boolean) => {
     setToggleLoading(activityId);
     try {
@@ -143,6 +153,8 @@ export default function LeagueActivitiesPage({
       setToggleLoading(null);
     }
   };
+
+  // no-op bulk handlers (removed UI); using original per-item toggle UX
 
   // Regular users just see enabled activities
   if (!isAdmin) {
@@ -346,62 +358,92 @@ export default function LeagueActivitiesPage({
               </AlertDescription>
             </Alert>
 
-            {/* Activities Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredActivities.map((activity) => {
-                const isEnabled = enabledActivityIds.has(activity.activity_id);
-                const isProcessing = toggleLoading === activity.activity_id;
+            {/* Host: original toggle grid, with enabled items sorted to the top */}
+            {isHost && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sortedActivities.map((activity) => {
+                  const isEnabled = enabledActivityIds.has(activity.activity_id);
+                  const isProcessing = toggleLoading === activity.activity_id;
 
-                return (
-                  <div
-                    key={activity.activity_id}
-                    className={cn(
-                      'flex items-start gap-3 p-4 rounded-lg border transition-all cursor-pointer',
-                      isEnabled
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-border bg-card hover:border-primary/50',
-                      isProcessing && 'opacity-50 pointer-events-none'
-                    )}
-                    onClick={() =>
-                      !isProcessing &&
-                      handleToggle(activity.activity_id, !isEnabled)
-                    }
-                  >
-                    <div className="pt-0.5">
-                      {isProcessing ? (
-                        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                      ) : (
-                        <Checkbox
-                          checked={isEnabled}
-                          disabled={isProcessing}
-                          className="pointer-events-none"
-                        />
+                  return (
+                    <div
+                      key={activity.activity_id}
+                      className={cn(
+                        'flex items-start gap-3 p-4 rounded-lg border transition-all cursor-pointer',
+                        isEnabled
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border bg-card hover:border-primary/50',
+                        isProcessing && 'opacity-50 pointer-events-none'
                       )}
+                      onClick={() =>
+                        !isProcessing &&
+                        handleToggle(activity.activity_id, !isEnabled)
+                      }
+                    >
+                      <div className="pt-0.5">
+                        {isProcessing ? (
+                          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Checkbox
+                            checked={isEnabled}
+                            disabled={isProcessing}
+                            className="pointer-events-none"
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-sm leading-tight">
+                            {activity.activity_name}
+                          </p>
+                          {activity.category && (
+                            <Badge variant="outline" className="text-xs">
+                              {activity.category.display_name}
+                            </Badge>
+                          )}
+                        </div>
+                        {activity.description && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {activity.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-sm leading-tight">
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Governor: read-only enabled activities */}
+            {isGovernor && !isHost && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredActivities
+                  .filter((a) => enabledActivityIds.has(a.activity_id))
+                  .map((activity) => (
+                    <Card key={activity.activity_id} className="border-primary/50 bg-primary/5">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Check className="size-4 text-primary" />
                           {activity.activity_name}
-                        </p>
+                        </CardTitle>
                         {activity.category && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="w-fit">
                             {activity.category.display_name}
                           </Badge>
                         )}
-                      </div>
-                      {activity.description && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {activity.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        {activity.description && (
+                          <CardDescription className="text-sm">
+                            {activity.description}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+                    </Card>
+                  ))}
+              </div>
+            )}
 
             {/* Warning if no activities enabled */}
-            {data.activities.length === 0 && data.allActivities && data.allActivities.length > 0 && (
+            {isHost && data.activities.length === 0 && data.allActivities && data.allActivities.length > 0 && (
               <Alert variant="destructive">
                 <AlertCircle className="size-4" />
                 <AlertTitle>Action Required</AlertTitle>

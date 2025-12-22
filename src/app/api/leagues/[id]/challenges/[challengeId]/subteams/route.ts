@@ -54,7 +54,7 @@ function isHostOrGovernor(role: LeagueRole): boolean {
 
 // GET - List sub-teams for a challenge
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; challengeId: string }> }
 ) {
   try {
@@ -71,8 +71,12 @@ export async function GET(
       return buildError('Not a member of this league', 403);
     }
 
-    // Fetch sub-teams with their members
-    const { data: subteams, error } = await supabase
+    // Optional filter by teamId
+    const { searchParams } = new URL(req.url);
+    const teamId = searchParams.get('teamId');
+
+    // Fetch sub-teams with their members (optionally filtered by team)
+    let query = supabase
       .from('challenge_subteams')
       .select(`
         subteam_id,
@@ -89,6 +93,12 @@ export async function GET(
       `)
       .eq('league_challenge_id', challengeId)
       .order('name');
+
+    if (teamId) {
+      query = query.eq('team_id', teamId);
+    }
+
+    const { data: subteams, error } = await query;
 
     if (error) {
       console.error('Error fetching sub-teams:', error);

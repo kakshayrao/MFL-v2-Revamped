@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 import type { 
   ActivityCategory, 
   ActivityCategoryCreateInput, 
@@ -9,7 +9,7 @@ import type {
  * Get all activity categories
  */
 export async function getActivityCategories(): Promise<ActivityCategory[]> {
-  const supabase = await createClient();
+  const supabase = createServerClient();
 
   const { data, error } = await supabase
     .from('activity_categories')
@@ -30,7 +30,7 @@ export async function getActivityCategories(): Promise<ActivityCategory[]> {
 export async function getActivityCategoryById(
   categoryId: string
 ): Promise<ActivityCategory | null> {
-  const supabase = await createClient();
+  const supabase = createServerClient();
 
   const { data, error } = await supabase
     .from('activity_categories')
@@ -52,7 +52,7 @@ export async function getActivityCategoryById(
 export async function createActivityCategory(
   input: ActivityCategoryCreateInput
 ): Promise<ActivityCategory> {
-  const supabase = await createClient();
+  const supabase = createServerClient();
 
   // Get next display order if not provided
   let displayOrder = input.display_order;
@@ -94,7 +94,7 @@ export async function updateActivityCategory(
   categoryId: string,
   input: ActivityCategoryUpdateInput
 ): Promise<ActivityCategory> {
-  const supabase = await createClient();
+  const supabase = createServerClient();
 
   const { data, error } = await supabase
     .from('activity_categories')
@@ -121,7 +121,7 @@ export async function updateActivityCategory(
  * Delete an activity category
  */
 export async function deleteActivityCategory(categoryId: string): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createServerClient();
 
   // First, check if any activities are using this category
   const { data: activities } = await supabase
@@ -151,7 +151,7 @@ export async function deleteActivityCategory(categoryId: string): Promise<void> 
 export async function reorderActivityCategories(
   categoryIds: string[]
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createServerClient();
 
   // Update each category with its new display order
   const updates = categoryIds.map((categoryId, index) =>
