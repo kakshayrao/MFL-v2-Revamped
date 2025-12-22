@@ -57,7 +57,7 @@ export function SubTeamManager({ leagueId, challengeId, teams }: SubTeamManagerP
 
   const selectedTeam = teams.find(t => t.team_id === selectedTeamId);
 
-  // Fetch data when main dialog opens with team selected
+  // Fetch sub-teams and team members when selectedTeamId changes or dialog opens
   useEffect(() => {
     if (open && selectedTeamId) {
       fetchSubTeams();
@@ -65,11 +65,11 @@ export function SubTeamManager({ leagueId, challengeId, teams }: SubTeamManagerP
     }
   }, [open, selectedTeamId]);
 
-  // Fetch team members when selectedTeamId changes
+  // Fetch sub-teams when team selection changes (even if dialog is already open)
   useEffect(() => {
-    if (selectedTeamId) {
-      console.log('fetchTeamMembers triggered for team:', selectedTeamId);
-      fetchTeamMembers();
+    if (selectedTeamId && open) {
+      console.log('fetchSubTeams triggered for team:', selectedTeamId);
+      fetchSubTeams();
     }
   }, [selectedTeamId]);
 
