@@ -34,6 +34,7 @@ import type { TeamRanking } from '@/hooks/use-league-leaderboard';
 
 interface LeagueTeamsTableProps {
   teams: TeamRanking[];
+  showAvgRR?: boolean;
 }
 
 // ============================================================================
@@ -73,7 +74,7 @@ function RankBadge({ rank }: { rank: number }) {
 // Main Component
 // ============================================================================
 
-export function LeagueTeamsTable({ teams }: LeagueTeamsTableProps) {
+export function LeagueTeamsTable({ teams, showAvgRR = true }: LeagueTeamsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   // ============================================================================
@@ -120,16 +121,16 @@ export function LeagueTeamsTable({ teams }: LeagueTeamsTableProps) {
         </div>
       ),
     },
-    {
-      accessorKey: 'avg_rr',
+    ...(showAvgRR ? [{
+      accessorKey: 'avg_rr' as const,
       header: 'Avg RR',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: any }) => (
         <div className="flex items-center gap-1.5">
           <Star className="size-4 text-yellow-500" />
           <span className="font-medium">{row.original.avg_rr.toFixed(2)}</span>
         </div>
       ),
-    },
+    }] : []),
     {
       accessorKey: 'submission_count',
       header: 'Submissions',

@@ -32,6 +32,7 @@ export interface Challenge {
   name: string;
   description: string;
   type: "streak" | "count" | "cumulative";
+  challengeType: "individual" | "team" | "sub_team";
   category: string;
   difficulty: "easy" | "medium" | "hard";
   status: "active" | "upcoming" | "completed" | "draft";
@@ -66,6 +67,7 @@ export function ChallengeFormDialog({
     name: "",
     description: "",
     type: "streak" as const,
+    challengeType: "individual" as const,
     category: "cardio",
     difficulty: "medium" as const,
     status: "draft" as const,
@@ -80,7 +82,7 @@ export function ChallengeFormDialog({
       setFormData({
         name: challenge.name,
         description: challenge.description,
-        type: challenge.type,
+        thallengeType: challenge.challengeType,
         category: challenge.category,
         difficulty: challenge.difficulty,
         status: challenge.status,
@@ -93,6 +95,8 @@ export function ChallengeFormDialog({
       setFormData({
         name: "",
         description: "",
+        type: "streak",
+        challengeType: "individual"",
         type: "streak",
         category: "cardio",
         difficulty: "medium",
@@ -156,9 +160,7 @@ export function ChallengeFormDialog({
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Complete a cardio workout every day for 7 consecutive days"
                 rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
+              />4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="type">Type</Label>
                 <Select
@@ -178,8 +180,29 @@ export function ChallengeFormDialog({
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="challengeType">Challenge Type *</Label>
+                <Select
+                  value={formData.challengeType}
+                  onValueChange={(value: "individual" | "team" | "sub_team") =>
+                    setFormData({ ...formData, challengeType: value })
+                  }
+                >
+                  <SelectTrigger id="challengeType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">Individual</SelectItem>
+                    <SelectItem value="team">Team</SelectItem>
+                    <SelectItem value="sub_team">Sub-Team</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData({ ...formData, category: value })
+                  
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
                 >

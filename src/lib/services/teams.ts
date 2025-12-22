@@ -172,26 +172,22 @@ export async function createTeamForLeague(
   try {
     const supabase = getSupabaseServiceRole();
 
-    // Check if team name already exists
-    const { data: existing } = await supabase
-      .from('teams')
-      .select('team_id')
-      .eq('team_name', teamName)
-      .maybeSingle();
+    // Check if team name already exists IN THIS LEAGUE
+    // Since teams can be in multiple leagues, we need to check the combination
+    const { data: existingTeamsInLeague } = await supabase
+      .from('teamleagues')
+      .select(`
+        teams!inner(team_id, team_name)
+      `)
+      .eq('league_id', leagueId);
 
-    if (existing) {
-      // Check if it's already linked to this league
-      const { data: linkedCheck } = await supabase
-        .from('teamleagues')
-        .select('id')
-        .eq('team_id', existing.team_id)
-        .eq('league_id', leagueId)
-        .maybeSingle();
+    const teamNameExists = (existingTeamsInLeague || []).some(
+      (tl: any) => tl.teams?.team_name?.toLowerCase() === teamName.toLowerCase()
+    );
 
-      if (linkedCheck) {
-        console.error('Team already exists in this league');
-        return null;
-      }
+    if (teamNameExists) {
+      console.error('Team name already exists in this league');
+      return null;
     }
 
     // Create the team with auto-generated invite code

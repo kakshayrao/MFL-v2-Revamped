@@ -242,11 +242,10 @@ export async function GET(
           teamChallengePoints.set(teamKey, teamCurrent + points);
         }
       } else if (challenge.challenge_type === 'sub_team' && sub.sub_team_id) {
-        // Sub-team challenge: lookup team from subteam
-        // For now, we'll fetch this separately or assume it's stored
-        // TODO: Consider storing team_id on sub_team_id submissions as well for easier aggregation
-      } else if (challenge.challenge_type === 'individual') {
-        // Individual challenge: aggregate by member's team if they're on a team
+        // Sub-team challenge: sub_team_id submissions should be aggregated to their parent team
+        // We need to lookup which team this sub_team belongs to
+        // Since sub_team members are league members, and league members have team_id, 
+        // we aggregate through the submitter's team membership
         const memberInfo = memberToUser.get(sub.league_member_id as string);
         if (memberInfo?.team_id && validTeamIds.has(memberInfo.team_id)) {
           const teamKey = memberInfo.team_id;
@@ -254,6 +253,8 @@ export async function GET(
           teamChallengePoints.set(teamKey, teamCurrent + points);
         }
       }
+      // Individual challenges: Points count only for the individual, NOT for their team
+      // Do not aggregate individual challenge points to teams
     });
 
     // =========================================================================

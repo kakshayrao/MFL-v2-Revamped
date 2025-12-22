@@ -349,11 +349,11 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
         <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'individuals')}>
           <TabsContent value="teams" className="mt-0">
-            <LeagueTeamsTable teams={teams} />
+            <LeagueTeamsTable teams={teams} showAvgRR={leaderboardType === 'overall'} />
           </TabsContent>
 
           <TabsContent value="individuals" className="mt-0">
-            <LeagueIndividualsTable individuals={individuals} />
+            <LeagueIndividualsTable individuals={individuals} showAvgRR={leaderboardType === 'overall'} />
           </TabsContent>
         </Tabs>
       </div>

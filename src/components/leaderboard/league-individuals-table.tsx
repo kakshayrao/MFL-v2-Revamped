@@ -56,6 +56,7 @@ import type { IndividualRanking } from '@/hooks/use-league-leaderboard';
 
 interface LeagueIndividualsTableProps {
   individuals: IndividualRanking[];
+  showAvgRR?: boolean;
 }
 
 // ============================================================================
@@ -139,16 +140,16 @@ export function LeagueIndividualsTable({ individuals }: LeagueIndividualsTablePr
         </p>
       ),
     },
-    {
-      accessorKey: 'avg_rr',
+    ...(showAvgRR ? [{
+      accessorKey: 'avg_rr' as const,
       header: 'Avg RR',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: any }) => (
         <div className="flex items-center gap-1.5">
           <Star className="size-4 text-yellow-500" />
           <span className="font-medium">{row.original.avg_rr.toFixed(2)}</span>
         </div>
       ),
-    },
+    }] : []),
     {
       accessorKey: 'submission_count',
       header: 'Submissions',
