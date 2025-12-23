@@ -115,7 +115,7 @@ export function LeagueTeamsTable({ teams, showAvgRR = false }: LeagueTeamsTableP
           </p>
           {row.original.challenge_bonus > 0 && (
             <p className="text-xs text-muted-foreground">
-              {row.original.points} + {row.original.challenge_bonus} bonus
+              {row.original.points} + {row.original.challenge_bonus} Challenge Points
             </p>
           )}
         </div>

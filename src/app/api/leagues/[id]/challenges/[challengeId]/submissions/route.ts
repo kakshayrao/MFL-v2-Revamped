@@ -100,13 +100,17 @@ export async function GET(
       .from('challenge_submissions')
       .select(
         `
-        *,
-        leaguemembers(
-          user_id,
-          team_id,
-          teams(team_name),
-          users!leaguemembers_user_id_fkey(username)
-        )
+        id,
+        league_member_id,
+        team_id,
+        sub_team_id,
+        awarded_points,
+        status,
+        proof_url,
+        created_at,
+        reviewed_at,
+        reviewed_by,
+        leaguemembers(user_id, team_id, teams(team_name), users!leaguemembers_user_id_fkey(user_id, username, email))
       `
       )
       .eq('league_challenge_id', challengeId);
@@ -116,13 +120,13 @@ export async function GET(
       baseQuery = baseQuery.eq('league_member_id', membership.leagueMemberId);
     }
 
-    // Apply team filter if provided
-    if (teamId) {
+    // Apply team filter if provided (only for team/sub_team challenges)
+    if (teamId && (challenge.challenge_type === 'team' || challenge.challenge_type === 'sub_team')) {
       baseQuery = baseQuery.eq('team_id', teamId);
     }
 
-    // Apply sub-team filter if provided
-    if (subTeamId) {
+    // Apply sub-team filter if provided (only for sub_team challenges)
+    if (subTeamId && challenge.challenge_type === 'sub_team') {
       baseQuery = baseQuery.eq('sub_team_id', subTeamId);
     }
 
@@ -134,6 +138,7 @@ export async function GET(
     const query = baseQuery.order('created_at', { ascending: false });
 
     const { data, error } = await query;
+
     if (error) {
       console.error('Error fetching challenge submissions', error);
       return buildError('Failed to fetch submissions', 500);
