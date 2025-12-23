@@ -471,7 +471,9 @@ export async function GET(
     });
 
     // Convert to array and sort
-    const individualRankings: IndividualRanking[] = Array.from(individualStats.values())
+    const fullParam = searchParams.get('full') === 'true';
+
+    let individualRankings: IndividualRanking[] = Array.from(individualStats.values())
       .map((is) => ({
         rank: 0,
         user_id: is.user_id,
@@ -487,8 +489,12 @@ export async function GET(
         if (b.points !== a.points) return b.points - a.points;
         return b.avg_rr - a.avg_rr;
       })
-      .map((individual, index) => ({ ...individual, rank: index + 1 }))
-      .slice(0, 50); // Limit to top 50
+      .map((individual, index) => ({ ...individual, rank: index + 1 }));
+
+    // By default, limit to top 50 unless client asks for full=true
+    if (!fullParam) {
+      individualRankings = individualRankings.slice(0, 50);
+    }
 
     // =========================================================================
     // Calculate sub-team rankings (challenge points only)

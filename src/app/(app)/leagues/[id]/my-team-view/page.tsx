@@ -102,6 +102,9 @@ export default function MyTeamViewPage({
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [teamRank, setTeamRank] = useState<string>('#--');
+  const [teamPoints, setTeamPoints] = useState<string>('--');
+  const [teamAvgRR, setTeamAvgRR] = useState<string>('--');
 
   const userTeamId = activeLeague?.team_id;
   const userTeamName = activeLeague?.team_name;
@@ -128,7 +131,26 @@ export default function MyTeamViewPage({
         }
 
         if (result.success) {
-          setMembers(result.data);
+          // Attach default points, then try to fetch full leaderboard to merge individual points
+          let membersWithPoints = (result.data || []).map((m: any) => ({ ...m, points: 0 }));
+
+          try {
+            const lbRes = await fetch(`/api/leagues/${leagueId}/leaderboard?full=true`);
+            const lbJson = await lbRes.json();
+            if (lbRes.ok && lbJson?.success && lbJson.data?.individuals) {
+              console.debug('[MyTeamView] leaderboard individuals count:', lbJson.data.individuals.length);
+              console.debug('[MyTeamView] sample individuals:', lbJson.data.individuals.slice(0,5));
+              const pts = new Map<string, number>(
+                lbJson.data.individuals.map((i: any) => [String(i.user_id), Number(i.points || 0)])
+              );
+              console.debug('[MyTeamView] built points map size:', pts.size);
+              membersWithPoints = membersWithPoints.map((m: any) => ({ ...m, points: pts.get(String(m.user_id)) || 0 }));
+            }
+          } catch (err) {
+            console.error('Error fetching leaderboard for points:', err);
+          }
+
+          setMembers(membersWithPoints);
         }
       } catch (err) {
         console.error('Error fetching team members:', err);
@@ -165,7 +187,7 @@ export default function MyTeamViewPage({
   const stats = [
     {
       title: 'Team Rank',
-      value: '#--',
+      value: teamRank,
       description: 'League standing',
       detail: 'Rank updates daily',
       icon: Trophy,
@@ -179,19 +201,36 @@ export default function MyTeamViewPage({
     },
     {
       title: 'Team Points',
-      value: '--',
+      value: String(teamPoints),
       description: 'Total RR',
       detail: 'Combined team effort',
       icon: Target,
     },
-    {
-      title: 'Team Streak',
-      value: '-- days',
-      description: 'Consecutive activity',
-      detail: 'Keep it up!',
-      icon: Flame,
-    },
   ];
+
+  // Fetch leaderboard stats for this team
+  useEffect(() => {
+    async function fetchTeamStats() {
+      if (!leagueId || !userTeamId) return;
+      try {
+        const res = await fetch(`/api/leagues/${leagueId}/leaderboard`);
+        const json = await res.json();
+        if (res.ok && json?.success && json.data?.teams) {
+          const team = (json.data.teams || []).find((t: any) => String(t.team_id) === String(userTeamId));
+          if (team) {
+            setTeamRank(`#${team.rank ?? '--'}`);
+            const pts = team.total_points ?? team.points ?? 0;
+            setTeamPoints(String(pts));
+            setTeamAvgRR(String(team.avg_rr ?? 0));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching team leaderboard stats (view):', err);
+      }
+    }
+
+    fetchTeamStats();
+  }, [leagueId, userTeamId]);
 
   // Check if user can view team (must be a player)
   if (!canSubmitWorkouts) {
@@ -331,7 +370,7 @@ export default function MyTeamViewPage({
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead className="text-center">Email</TableHead>
+                  <TableHead className="text-center">Points</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -376,7 +415,7 @@ export default function MyTeamViewPage({
                       )}
                     </TableCell>
                     <TableCell className="text-center text-muted-foreground text-sm">
-                      {member.email}
+                      {(member as any).points ?? 0}
                     </TableCell>
                   </TableRow>
                 ))

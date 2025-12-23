@@ -189,7 +189,7 @@ export function AssignGovernorDialog({
                             {member.username}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {member.email}
+                            Points: {(member as any).points ?? 0}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
