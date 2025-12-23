@@ -92,7 +92,7 @@ function TableSkeleton() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Skeleton className="h-8 w-48" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           <Skeleton className="h-10 w-32" />
           <Skeleton className="h-10 w-32" />
         </div>
@@ -477,26 +477,41 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
           </p>
         </div>
         {canManageTeams && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setViewUnallocatedDialogOpen(true)}>
-              <Users className="mr-2 size-4" />
-              Unallocated ({data?.members.unallocated.length || 0})
-            </Button>
-            {isHost && (
-              <Button variant="outline" onClick={() => setAssignGovernorDialogOpen(true)}>
-                <Shield className="mr-2 size-4" />
-                {data?.governors && data.governors.length > 0 ? "Manage Governors" : "Assign Governor"}
-              </Button>
-            )}
-            <Button
-              onClick={() => setCreateDialogOpen(true)}
-              disabled={!data?.meta.can_create_more}
-            >
-              <Plus className="mr-2 size-4" />
-              Create Team
-            </Button>
-          </div>
-        )}
+  <div className="flex flex-wrap gap-2">
+    <Button
+      size="sm"
+      variant="outline"
+      className="text-xs px-2 h-8"
+      onClick={() => setViewUnallocatedDialogOpen(true)}
+    >
+      <Users className="mr-1 size-3" />
+      Unallocated ({data?.members.unallocated.length || 0})
+    </Button>
+
+    {isHost && (
+      <Button
+        size="sm"
+        variant="outline"
+        className="text-xs px-2 h-8"
+        onClick={() => setAssignGovernorDialogOpen(true)}
+      >
+        <Shield className="mr-1 size-3" />
+        Governors
+      </Button>
+    )}
+
+    <Button
+      size="sm"
+      className="text-xs px-2 h-8"
+      onClick={() => setCreateDialogOpen(true)}
+      disabled={!data?.meta.can_create_more}
+    >
+      <Plus className="mr-1 size-3" />
+      Create Team
+    </Button>
+  </div>
+)}
+
       </div>
 
       {/* Governors Info */}
@@ -592,22 +607,24 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
 
       {/* Pagination */}
       {(data?.teams.length || 0) > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Left info */}
+          <div className="text-sm text-muted-foreground text-center sm:text-left">
             {table.getFilteredRowModel().rows.length} team(s) total
           </div>
-          <div className="flex items-center gap-6">
+
+          {/* Right controls */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {/* Rows per page */}
             <div className="flex items-center gap-2">
-              <Label htmlFor="rows-per-page" className="text-sm">
-                Rows per page
-              </Label>
+              <Label className="text-xs">Rows</Label>
               <Select
                 value={`${pagination.pageSize}`}
                 onValueChange={(value) =>
                   setPagination({ ...pagination, pageSize: Number(value) })
                 }
               >
-                <SelectTrigger className="w-16" id="rows-per-page">
+                <SelectTrigger className="h-8 w-16 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -619,50 +636,55 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-sm">
-              Page {pagination.pageIndex + 1} of {table.getPageCount() || 1}
+
+            {/* Page info */}
+            <div className="text-xs">
+              Page {pagination.pageIndex + 1} / {table.getPageCount() || 1}
             </div>
+
+            {/* Arrows */}
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-7"
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
               >
-                <ChevronsLeft className="size-4" />
+                <ChevronsLeft className="size-3" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-7"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
-                <ChevronLeft className="size-4" />
+                <ChevronLeft className="size-3" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-7"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
-                <ChevronRight className="size-4" />
+                <ChevronRight className="size-3" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-7"
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}
               >
-                <ChevronsRight className="size-4" />
+                <ChevronsRight className="size-3" />
               </Button>
             </div>
           </div>
         </div>
       )}
+
 
       {/* Dialogs */}
       <CreateTeamDialog

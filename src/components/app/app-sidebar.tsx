@@ -9,6 +9,7 @@ import {
   Settings,
   HelpCircle,
   ChevronRight,
+  Dumbbell,
 } from 'lucide-react';
 
 import { useLeague } from '@/contexts/league-context';
@@ -75,9 +76,19 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      {/* Header - League Switcher */}
+      {/* Header - Logo + League Switcher */}
       <SidebarHeader>
-        <LeagueSwitcher />
+        <div className="flex items-center gap-3 md:justify-start py-2">
+          <Link href="/" className="flex items-center gap-3 font-semibold">
+            <div className="bg-primary text-primary-foreground flex size-10 items-center justify-center rounded-md shadow-sm">
+              <Dumbbell className="size-6" />
+            </div>
+            <span className="text-lg leading-none">My Fitness League</span>
+          </Link>
+        </div>
+        <div className="mt-2">
+          <LeagueSwitcher />
+        </div>
       </SidebarHeader>
 
       {/* Content - Dynamic Navigation */}

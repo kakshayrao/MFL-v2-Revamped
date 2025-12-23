@@ -454,7 +454,7 @@ export default function LeagueDashboardPage({
 
           <div className="border-t p-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="flex items-center justify-between md:flex-col md:items-start gap-2">
+              <div className="flex flex-col gap-1 md:flex-col md:items-start">
                 <span className="text-sm text-muted-foreground">Visibility</span>
                 <Badge variant={league.is_public ? 'default' : 'secondary'}>
                   {league.is_public ? (
@@ -464,19 +464,22 @@ export default function LeagueDashboardPage({
                   )}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between md:flex-col md:items-start gap-2">
+              <div className="flex flex-col gap-1 md:flex-col md:items-start">
+
                 <span className="text-sm text-muted-foreground">Join Type</span>
                 <Badge variant="outline">
                   {league.is_exclusive ? 'Invite Only' : 'Open'}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between md:flex-col md:items-start gap-2">
+              <div className="flex flex-col gap-1 md:flex-col md:items-start">
+
                 <span className="text-sm text-muted-foreground">Rest Days</span>
                 <Badge variant="outline">
                   {league.rest_days} per week
                 </Badge>
               </div>
-              <div className="flex items-center justify-between md:flex-col md:items-start gap-2">
+              <div className="flex flex-col gap-1 md:flex-col md:items-start">
+
                 <span className="text-sm text-muted-foreground">Schedule</span>
                 <Badge variant="outline" className="text-xs">
                   <Calendar className="size-3 mr-1" />

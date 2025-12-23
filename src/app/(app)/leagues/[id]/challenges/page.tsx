@@ -542,7 +542,7 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
         )}
       </div>
 
-      <div className="px-4 lg:px-6 space-y-4">
+      <div className="px-4 lg:px-6 mt-6 space-y-4">
         {loading && <p className="text-muted-foreground">Loading challenges...</p>}
         {error && <p className="text-destructive">{error}</p>}
 
@@ -557,7 +557,7 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
             </CardHeader>
             <CardContent>
               <div className="flex gap-3 items-end">
-                <div className="flex-1">
+                <div className="flex-1 space-y-2">
                   <Label htmlFor="preset-select">Challenge</Label>
                   <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
                     <SelectTrigger id="preset-select">
@@ -585,90 +585,118 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
 
         {!loading && !error && challenges.length === 0 && presets.length === 0 && emptyState}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           {challenges.map((challenge) => (
-            <Card key={challenge.id} className="flex flex-col">
-              <CardHeader className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-lg line-clamp-1">{challenge.name}</CardTitle>
+            <Card
+              key={challenge.id}
+              className="flex flex-col rounded-xl border border-white/10
+                          bg-gradient-to-b from-[#0c1b33] to-[#081425]
+                          hover:border-white/20 transition"
+            >
+              {/* HEADER */}
+              <CardHeader className="pb-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-lg font-semibold leading-tight">
+                    {challenge.name}
+                  </CardTitle>
                   {statusBadge(challenge.status)}
                 </div>
-                <CardDescription className="line-clamp-2">
+
+                <CardDescription className="text-sm leading-relaxed line-clamp-2">
                   {challenge.description || 'No description provided'}
                 </CardDescription>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Badge variant="outline">{challenge.challenge_type}</Badge>
-                  <span className="font-medium text-foreground">{challenge.total_points} pts</span>
-                </div>
-                <div className="text-xs text-muted-foreground flex gap-2">
-                  {challenge.start_date && <span>Start: {challenge.start_date}</span>}
-                  {challenge.end_date && <span>End: {challenge.end_date}</span>}
-                </div>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col gap-3">
-                {challenge.doc_url && (
-                  <a
-                    href={challenge.doc_url}
-                    className="text-sm text-primary underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View Brief / Rules
-                  </a>
-                )}
 
-                {challenge.stats && isAdmin && (
-                  <div className="flex gap-2 text-xs text-muted-foreground">
-                    <span>Pending: {challenge.stats.pending}</span>
-                    <span>Approved: {challenge.stats.approved}</span>
-                    <span>Rejected: {challenge.stats.rejected}</span>
+              {/* META */}
+              <CardContent className="flex flex-col gap-4 text-sm">
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  <Badge variant="outline" className="capitalize">
+                    {challenge.challenge_type.replace('_', ' ')}
+                  </Badge>
+                  <span className="font-medium text-foreground">
+                    {challenge.total_points} pts
+                  </span>
+                </div>
+
+                {(challenge.start_date || challenge.end_date) && (
+                  <div className="text-xs text-muted-foreground">
+                    {challenge.start_date && <>Start: {challenge.start_date}</>}
+                    {challenge.start_date && challenge.end_date && ' • '}
+                    {challenge.end_date && <>End: {challenge.end_date}</>}
                   </div>
                 )}
 
-                <div className="mt-auto flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => handleOpenSubmit(challenge)}>
-                      <Upload className="mr-2 size-4" />
-                      Submit Proof
+                {isAdmin && challenge.stats && (
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-md bg-white/5 px-2 py-1 text-center">
+                      Pending<br />
+                      <span className="font-semibold">{challenge.stats.pending}</span>
+                    </div>
+                    <div className="rounded-md bg-white/5 px-2 py-1 text-center">
+                      Approved<br />
+                      <span className="font-semibold text-green-400">
+                        {challenge.stats.approved}
+                      </span>
+                    </div>
+                    <div className="rounded-md bg-white/5 px-2 py-1 text-center">
+                      Rejected<br />
+                      <span className="font-semibold text-red-400">
+                        {challenge.stats.rejected}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+
+              {/* ACTIONS */}
+              <div className="mt-auto px-6 pb-5 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => handleOpenSubmit(challenge)}>
+                    Submit Proof
+                  </Button>
+
+                  {challenge.my_submission &&
+                    submissionStatusBadge(challenge.my_submission.status)}
+
+                  {isAdmin && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenReview(challenge)}
+                      className="ml-auto"
+                    >
+                      Review
                     </Button>
-                    {challenge.my_submission && submissionStatusBadge(challenge.my_submission.status)}
-                    {isAdmin && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenReview(challenge)}
-                          className="ml-auto"
-                        >
-                          <Shield className="mr-2 size-4" />
-                          Review
-                        </Button>
-                        {isHost && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteClick(challenge)}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="mr-2 size-4" />
-                            Delete
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {isAdmin && challenge.challenge_type === 'sub_team' && (
-                    <SubTeamManager
-                      leagueId={leagueId}
-                      challengeId={challenge.id}
-                      teams={teams}
-                    />
                   )}
                 </div>
-              </CardContent>
+
+                {isAdmin && (
+                  <div className="flex items-center justify-between">
+                    {challenge.challenge_type === 'sub_team' && (
+                      <SubTeamManager
+                        leagueId={leagueId}
+                        challengeId={challenge.id}
+                        teams={teams}
+                      />
+                    )}
+
+                    {isHost && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteClick(challenge)}
+                      >
+                        Delete
+                      </Button>
+
+                    )}
+                  </div>
+                )}
+              </div>
             </Card>
           ))}
         </div>
+
       </div>
 
       {/* Create Challenge Dialog */}
