@@ -14,6 +14,12 @@ export interface LeagueActivity {
   activity_id: string;
   activity_name: string;
   description: string | null;
+  category_id: string | null;
+  category?: {
+    category_id: string;
+    category_name: string;
+    display_name: string;
+  } | null;
   value: string; // Normalized name for workout_type
 }
 

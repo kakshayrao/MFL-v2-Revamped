@@ -37,6 +37,8 @@ export function ViewUnallocatedDialog({
     }
   }, [open]);
 
+  // Points (if present) should be merged into member objects by the parent.
+
   const filteredMembers = React.useMemo(() => {
     if (!searchQuery.trim()) return members;
     const query = searchQuery.toLowerCase();
@@ -108,9 +110,9 @@ export function ViewUnallocatedDialog({
                       <p className="font-medium text-sm truncate">
                         {member.username}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {member.email}
-                      </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          Points: {(member as any).points ?? 0}
+                        </p>
                     </div>
                     <div className="flex items-center gap-1">
                       {member.roles

@@ -67,6 +67,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (body.activity_name !== undefined) input.activity_name = body.activity_name;
     if (body.description !== undefined) input.description = body.description;
+    if (body.category_id !== undefined) input.category_id = body.category_id;
 
     const adminUserId = (session.user as any)?.id;
     const activity = await updateActivity(activityId, input, adminUserId);

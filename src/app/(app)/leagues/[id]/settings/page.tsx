@@ -14,7 +14,6 @@ import {
   Trophy,
   Info,
   Shield,
-  Dumbbell,
 } from 'lucide-react';
 
 import { useRole } from '@/contexts/role-context';
@@ -51,7 +50,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { LeagueActivitiesManager } from '@/components/leagues/league-activities-manager';
 
 // ============================================================================
 // League Settings Page (Host Only)
@@ -324,22 +322,6 @@ export default function LeagueSettingsPage({
                     }
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Activities Configuration Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Dumbbell className="size-5 text-primary" />
-                  Activities Configuration
-                </CardTitle>
-                <CardDescription>
-                  Configure which activity types players can submit for this league
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <LeagueActivitiesManager leagueId={id} />
               </CardContent>
             </Card>
 

@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const filters: AdminActivityFilters = {
       search: searchParams.get('search') || undefined,
+      category_id: searchParams.get('category_id') || undefined,
     };
 
     const activities = await getAllActivities(filters);
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { activity_name, description } = body;
+    const { activity_name, description, category_id } = body;
 
     if (!activity_name) {
       return NextResponse.json(
@@ -64,9 +65,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!category_id) {
+      return NextResponse.json(
+        { error: 'Category is required' },
+        { status: 400 }
+      );
+    }
+
     const input: AdminActivityCreateInput = {
       activity_name,
       description: description || null,
+      category_id,
     };
 
     const adminUserId = (session.user as any)?.id;

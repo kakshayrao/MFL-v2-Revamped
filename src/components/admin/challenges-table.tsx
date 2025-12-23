@@ -160,6 +160,7 @@ export function ChallengesTable({ data: initialData }: ChallengesTableProps) {
         name: challengeData.name || "",
         description: challengeData.description || "",
         type: challengeData.type || "streak",
+        challengeType: challengeData.challengeType || "individual",
         category: challengeData.category || "cardio",
         difficulty: challengeData.difficulty || "medium",
         status: challengeData.status || "draft",
@@ -196,6 +197,23 @@ export function ChallengesTable({ data: initialData }: ChallengesTableProps) {
       accessorKey: "type",
       header: "Type",
       cell: ({ row }) => <TypeBadge type={row.original.type} />,
+    },
+    {
+      accessorKey: "challengeType",
+      header: "Challenge Type",
+      cell: ({ row }) => {
+        const type = row.original.challengeType || "individual";
+        const colorMap = {
+          individual: "bg-blue-100 text-blue-700 dark:bg-blue-900/30",
+          team: "bg-green-100 text-green-700 dark:bg-green-900/30",
+          sub_team: "bg-purple-100 text-purple-700 dark:bg-purple-900/30",
+        };
+        return (
+          <Badge variant="secondary" className={colorMap[type as keyof typeof colorMap]}>
+            {type === "sub_team" ? "Sub-Team" : type.charAt(0).toUpperCase() + type.slice(1)}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: "difficulty",

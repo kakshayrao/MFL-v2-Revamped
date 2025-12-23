@@ -19,7 +19,10 @@ export async function getAllActivities(filters?: AdminActivityFilters): Promise<
     const supabase = getSupabaseServiceRole();
     let query = supabase
       .from('activities')
-      .select('*')
+      .select(`
+        *,
+        activity_categories(category_id, category_name, display_name, description, display_order)
+      `)
       .order('created_date', { ascending: false });
 
     // Apply search filter
@@ -29,6 +32,11 @@ export async function getAllActivities(filters?: AdminActivityFilters): Promise<
       );
     }
 
+    // Apply category filter
+    if (filters?.category_id) {
+      query = query.eq('category_id', filters.category_id);
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -36,7 +44,10 @@ export async function getAllActivities(filters?: AdminActivityFilters): Promise<
       return [];
     }
 
-    return (data || []) as AdminActivity[];
+    return (data || []).map((row: any) => ({
+      ...row,
+      category: row.activity_categories || null,
+    })) as AdminActivity[];
   } catch (err) {
     console.error('Error in getAllActivities:', err);
     return [];
@@ -51,7 +62,7 @@ export async function getActivityById(activityId: string): Promise<AdminActivity
     const supabase = getSupabaseServiceRole();
     const { data, error } = await supabase
       .from('activities')
-      .select('*')
+      .select(`*, activity_categories(category_id, category_name, display_name, description, display_order)`) 
       .eq('activity_id', activityId)
       .single();
 
@@ -60,7 +71,12 @@ export async function getActivityById(activityId: string): Promise<AdminActivity
       return null;
     }
 
-    return data as AdminActivity;
+    return data
+      ? ({
+          ...data,
+          category: (data as any).activity_categories || null,
+        } as AdminActivity)
+      : null;
   } catch (err) {
     console.error('Error in getActivityById:', err);
     return null;
@@ -81,6 +97,7 @@ export async function createActivity(
       .insert({
         activity_name: input.activity_name,
         description: input.description || null,
+        category_id: input.category_id || null,
         created_by: createdBy || null,
       })
       .select()
@@ -112,6 +129,7 @@ export async function updateActivity(
       .from('activities')
       .update({
         ...input,
+        category_id: input.category_id ?? null,
         modified_by: modifiedBy || null,
         modified_date: new Date().toISOString(),
       })

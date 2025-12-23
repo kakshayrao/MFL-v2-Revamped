@@ -101,10 +101,37 @@ export interface AdminLeagueUpdateInput {
 // Activity Types
 // ============================================================================
 
+// Activity Category
+export interface ActivityCategory {
+  category_id: string;
+  category_name: string;
+  display_name: string;
+  description?: string | null;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActivityCategoryCreateInput {
+  category_name: string;
+  display_name: string;
+  description?: string | null;
+  display_order?: number;
+}
+
+export interface ActivityCategoryUpdateInput {
+  category_name?: string;
+  display_name?: string;
+  description?: string | null;
+  display_order?: number;
+}
+
 export interface AdminActivity {
   activity_id: string;
   activity_name: string;
   description?: string | null;
+  category_id?: string | null;
+  category?: ActivityCategory | null;
   created_by?: string | null;
   created_date: string;
   modified_by?: string | null;
@@ -114,11 +141,13 @@ export interface AdminActivity {
 export interface AdminActivityCreateInput {
   activity_name: string;
   description?: string | null;
+  category_id?: string | null;
 }
 
 export interface AdminActivityUpdateInput {
   activity_name?: string;
   description?: string | null;
+  category_id?: string | null;
 }
 
 // ============================================================================
@@ -243,6 +272,7 @@ export interface AdminLeagueFilters {
 
 export interface AdminActivityFilters {
   search?: string;
+  category_id?: string;
 }
 
 export interface AdminRoleFilters {

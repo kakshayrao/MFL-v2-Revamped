@@ -34,6 +34,7 @@ import type { TeamRanking } from '@/hooks/use-league-leaderboard';
 
 interface LeagueTeamsTableProps {
   teams: TeamRanking[];
+  showAvgRR?: boolean;
 }
 
 // ============================================================================
@@ -73,14 +74,14 @@ function RankBadge({ rank }: { rank: number }) {
 // Main Component
 // ============================================================================
 
-export function LeagueTeamsTable({ teams }: LeagueTeamsTableProps) {
+export function LeagueTeamsTable({ teams, showAvgRR = false }: LeagueTeamsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   // ============================================================================
   // Table Columns
   // ============================================================================
 
-  const columns: ColumnDef<TeamRanking>[] = [
+  const columns: ColumnDef<TeamRanking>[] = React.useMemo(() => [
     {
       accessorKey: 'rank',
       header: 'Rank',
@@ -114,22 +115,24 @@ export function LeagueTeamsTable({ teams }: LeagueTeamsTableProps) {
           </p>
           {row.original.challenge_bonus > 0 && (
             <p className="text-xs text-muted-foreground">
-              {row.original.points} + {row.original.challenge_bonus} bonus
+              {row.original.points} + {row.original.challenge_bonus} Challenge Points
             </p>
           )}
         </div>
       ),
     },
-    {
-      accessorKey: 'avg_rr',
-      header: 'Avg RR',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1.5">
-          <Star className="size-4 text-yellow-500" />
-          <span className="font-medium">{row.original.avg_rr.toFixed(2)}</span>
-        </div>
-      ),
-    },
+    ...(showAvgRR
+      ? [{
+          accessorKey: 'avg_rr' as const,
+          header: 'Avg RR',
+          cell: ({ row }: { row: any }) => (
+            <div className="flex items-center gap-1.5">
+              <Star className="size-4 text-yellow-500" />
+              <span className="font-medium">{row.original.avg_rr.toFixed(2)}</span>
+            </div>
+          ),
+        }]
+      : []),
     {
       accessorKey: 'submission_count',
       header: 'Submissions',
@@ -139,7 +142,7 @@ export function LeagueTeamsTable({ teams }: LeagueTeamsTableProps) {
         </Badge>
       ),
     },
-  ];
+  ], [showAvgRR]);
 
   // ============================================================================
   // Table Instance

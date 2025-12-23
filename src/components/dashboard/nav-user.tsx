@@ -82,8 +82,8 @@ export function NavUser({ user }: NavUserProps) {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild suppressHydrationWarning>
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"

@@ -172,26 +172,22 @@ export async function createTeamForLeague(
   try {
     const supabase = getSupabaseServiceRole();
 
-    // Check if team name already exists
-    const { data: existing } = await supabase
-      .from('teams')
-      .select('team_id')
-      .eq('team_name', teamName)
-      .maybeSingle();
+    // Check if team name already exists IN THIS LEAGUE
+    // Since teams can be in multiple leagues, we need to check the combination
+    const { data: existingTeamsInLeague } = await supabase
+      .from('teamleagues')
+      .select(`
+        teams!inner(team_id, team_name)
+      `)
+      .eq('league_id', leagueId);
 
-    if (existing) {
-      // Check if it's already linked to this league
-      const { data: linkedCheck } = await supabase
-        .from('teamleagues')
-        .select('id')
-        .eq('team_id', existing.team_id)
-        .eq('league_id', leagueId)
-        .maybeSingle();
+    const teamNameExists = (existingTeamsInLeague || []).some(
+      (tl: any) => tl.teams?.team_name?.toLowerCase() === teamName.toLowerCase()
+    );
 
-      if (linkedCheck) {
-        console.error('Team already exists in this league');
-        return null;
-      }
+    if (teamNameExists) {
+      console.error('Team name already exists in this league');
+      return null;
     }
 
     // Create the team with auto-generated invite code
@@ -351,9 +347,16 @@ export async function getTeamMembers(
       .eq('team_id', teamId)
       .eq('league_id', leagueId);
 
+    console.log('[getTeamMembers] Query params - teamId:', teamId, 'leagueId:', leagueId);
+    console.log('[getTeamMembers] Query error:', error);
+    console.log('[getTeamMembers] Raw members response:', members);
+
     if (error || !members) {
+      console.log('[getTeamMembers] Returning empty array - error:', error);
       return [];
     }
+
+    console.log('[getTeamMembers] Found', members.length, 'members');
 
     // Get roles for each member
     const membersWithRoles = await Promise.all(
@@ -380,9 +383,10 @@ export async function getTeamMembers(
       })
     );
 
+    console.log('[getTeamMembers] Returning members with roles:', membersWithRoles);
     return membersWithRoles;
   } catch (err) {
-    console.error('Error fetching team members:', err);
+    console.error('[getTeamMembers] Error:', err);
     return [];
   }
 }
@@ -626,7 +630,7 @@ export async function removeCaptain(
 /**
  * Assign governor role to a user
  * Rules:
- * - Only one governor per league (besides host)
+ * - Multiple governors can be assigned per league
  * - Governor must be a league member
  * - Host cannot be assigned as governor (already has all permissions)
  */
@@ -672,20 +676,17 @@ export async function assignGovernor(
       return { success: false, error: 'Governor role not found' };
     }
 
-    // Check if there's already a governor
-    const { data: existingGovernor } = await supabase
+    // Check if user already has governor role
+    const { data: existingAssignment } = await supabase
       .from('assignedrolesforleague')
-      .select('id, user_id')
+      .select('id')
+      .eq('user_id', userId)
       .eq('league_id', leagueId)
       .eq('role_id', governorRole.role_id)
       .maybeSingle();
 
-    // Remove existing governor if any
-    if (existingGovernor) {
-      await supabase
-        .from('assignedrolesforleague')
-        .delete()
-        .eq('id', existingGovernor.id);
+    if (existingAssignment) {
+      return { success: false, error: 'User is already a governor' };
     }
 
     // Assign governor role
@@ -743,11 +744,11 @@ export async function removeGovernor(
 }
 
 /**
- * Get the current governor of a league
+ * Get all current governors of a league
  */
-export async function getLeagueGovernor(
+export async function getLeagueGovernors(
   leagueId: string
-): Promise<{ user_id: string; username: string } | null> {
+): Promise<{ user_id: string; username: string }[]> {
   try {
     const supabase = getSupabaseServiceRole();
 
@@ -757,30 +758,31 @@ export async function getLeagueGovernor(
       .eq('role_name', 'governor')
       .single();
 
-    if (!governorRole) return null;
+    if (!governorRole) return [];
 
-    const { data: governor } = await supabase
+    const { data: governors } = await supabase
       .from('assignedrolesforleague')
       .select('user_id')
       .eq('league_id', leagueId)
-      .eq('role_id', governorRole.role_id)
-      .maybeSingle();
+      .eq('role_id', governorRole.role_id);
 
-    if (!governor) return null;
+    if (!governors || governors.length === 0) return [];
 
-    const { data: user } = await supabase
+    const userIds = governors.map(g => g.user_id);
+    const { data: users } = await supabase
       .from('users')
-      .select('username')
-      .eq('user_id', governor.user_id)
-      .single();
+      .select('user_id, username')
+      .in('user_id', userIds);
 
-    return {
-      user_id: governor.user_id,
-      username: user?.username || 'Unknown',
-    };
+    if (!users) return [];
+
+    return users.map(user => ({
+      user_id: user.user_id,
+      username: user.username || 'Unknown',
+    }));
   } catch (err) {
-    console.error('Error getting governor:', err);
-    return null;
+    console.error('Error getting governors:', err);
+    return [];
   }
 }
 

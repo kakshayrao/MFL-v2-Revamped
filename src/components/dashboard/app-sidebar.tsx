@@ -56,6 +56,11 @@ const adminNavItems = [
     icon: Trophy,
   },
   {
+    title: "Challenges",
+    url: "/admin/challenges",
+    icon: Dumbbell,
+  },
+  {
     title: "Revenue",
     url: "/admin/revenue",
     icon: DollarSign,

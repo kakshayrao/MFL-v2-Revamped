@@ -13,6 +13,7 @@ import {
   Trash2,
   Zap,
   Loader2,
+  Filter,
 } from "lucide-react";
 import {
   flexRender,
@@ -28,6 +29,15 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +47,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -106,6 +117,7 @@ export function ActivitiesTable() {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
+  const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
 
   const [formDialogOpen, setFormDialogOpen] = React.useState(false);
   const [editingActivity, setEditingActivity] = React.useState<AdminActivity | null>(null);
@@ -113,13 +125,63 @@ export function ActivitiesTable() {
   const [activityToDelete, setActivityToDelete] = React.useState<AdminActivity | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
+  // Create Category dialog state
+  const [catDialogOpen, setCatDialogOpen] = React.useState(false);
+  const [catName, setCatName] = React.useState("");
+  const [catDesc, setCatDesc] = React.useState("");
+  const [catSaving, setCatSaving] = React.useState(false);
+  const [catListOpen, setCatListOpen] = React.useState(false);
+  const [catList, setCatList] = React.useState<{ category_id: string; display_name: string; category_name: string; description?: string | null; usage_count?: number }[]>([]);
+  const [catListLoading, setCatListLoading] = React.useState(false);
+
   // Fetch activities with hook
   const { activities, isLoading, error, createActivity, updateActivity, deleteActivity, refetch } =
-    useAdminActivities();
+    useAdminActivities({ category_id: categoryFilter === "all" ? undefined : categoryFilter });
+
+  const categoryOptions = React.useMemo(() => {
+    const unique = new Map<string, { id: string; name: string }>();
+    activities.forEach((a) => {
+      if (a.category && a.category.category_id) {
+        unique.set(a.category.category_id, {
+          id: a.category.category_id,
+          name: a.category.display_name || a.category.category_name,
+        });
+      }
+    });
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [activities]);
+
+  const handleCategoryFilterChange = (value: string) => {
+    setCategoryFilter(value);
+    setColumnFilters((prev) => {
+      const withoutCategory = prev.filter((f) => f.id !== "category_id");
+      if (value === "all") return withoutCategory;
+      return [...withoutCategory, { id: "category_id", value }];
+    });
+  };
 
   const handleAddActivity = () => {
     setEditingActivity(null);
     setFormDialogOpen(true);
+  };
+
+  const handleAddCategory = () => {
+    setCatDialogOpen(true);
+  };
+
+  const handleViewCategories = async () => {
+    setCatListOpen(true);
+    setCatListLoading(true);
+    try {
+      const res = await fetch('/api/admin/activity-categories');
+      const json = await res.json();
+      if (res.ok && Array.isArray(json.data)) setCatList(json.data);
+      else setCatList([]);
+    } catch {
+      setCatList([]);
+    } finally {
+      setCatListLoading(false);
+    }
   };
 
   const handleEditActivity = (activity: AdminActivity) => {
@@ -151,12 +213,14 @@ export function ActivitiesTable() {
   const handleFormSubmit = async (activityData: {
     activity_name: string;
     description?: string;
+    category_id?: string | "";
   }) => {
     if (editingActivity) {
       // Edit existing activity
       const result = await updateActivity(editingActivity.activity_id, {
         activity_name: activityData.activity_name,
         description: activityData.description || null,
+        category_id: activityData.category_id ? activityData.category_id : null,
       });
 
       if (result) {
@@ -170,6 +234,7 @@ export function ActivitiesTable() {
       const result = await createActivity({
         activity_name: activityData.activity_name,
         description: activityData.description,
+        category_id: activityData.category_id ? activityData.category_id : null,
       });
 
       if (result) {
@@ -204,6 +269,21 @@ export function ActivitiesTable() {
           {row.original.description || "No description"}
         </span>
       ),
+    },
+    {
+      accessorKey: "category_id",
+      header: "Category",
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue) return true;
+        return row.getValue<string | null>(columnId) === filterValue;
+      },
+      cell: ({ row }) => {
+        const category = row.original.category;
+        if (!category) {
+          return <span className="text-muted-foreground">Uncategorized</span>;
+        }
+        return <Badge variant="outline">{category.display_name || category.category_name}</Badge>;
+      },
     },
     {
       accessorKey: "created_date",
@@ -270,10 +350,19 @@ export function ActivitiesTable() {
           <h1 className="text-2xl font-bold tracking-tight">Activity Management</h1>
           <p className="text-muted-foreground">Create and manage trackable activities</p>
         </div>
-        <Button onClick={handleAddActivity}>
-          <Plus className="mr-2 size-4" />
-          Add Activity
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handleViewCategories}>
+            View Categories
+          </Button>
+          <Button variant="outline" onClick={handleAddCategory}>
+            <Plus className="mr-2 size-4" />
+            Add Category
+          </Button>
+          <Button onClick={handleAddActivity}>
+            <Plus className="mr-2 size-4" />
+            Add Activity
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -285,6 +374,27 @@ export function ActivitiesTable() {
             onChange={(e) => setGlobalFilter(e.target.value)}
             className="pl-9"
           />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm text-muted-foreground">Category</Label>
+          <Select value={categoryFilter} onValueChange={handleCategoryFilterChange}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <div className="flex items-center gap-2">
+                  <Filter className="size-4" />
+                  <span>All categories</span>
+                </div>
+              </SelectItem>
+              {categoryOptions.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -452,6 +562,140 @@ export function ActivitiesTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Category Dialog */}
+      <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Create Category</DialogTitle>
+            <DialogDescription>Define a new activity category.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="catName">Display Name *</Label>
+              <Input
+                id="catName"
+                value={catName}
+                onChange={(e) => setCatName(e.target.value)}
+                placeholder="Cardio"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="catDesc">Description</Label>
+              <Textarea
+                id="catDesc"
+                value={catDesc}
+                onChange={(e) => setCatDesc(e.target.value)}
+                rows={3}
+                placeholder="Optional description"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCatDialogOpen(false)} disabled={catSaving}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={catSaving || !catName.trim()}
+              onClick={async () => {
+                if (!catName.trim()) return;
+                setCatSaving(true);
+                try {
+                  const res = await fetch('/api/admin/activity-categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_name: catName.trim(), description: catDesc || null }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json?.error || 'Failed to create category');
+                  toast.success('Category created');
+                  setCatDialogOpen(false);
+                  setCatName('');
+                  setCatDesc('');
+                } catch (e: any) {
+                  toast.error(e?.message || 'Failed to create category');
+                } finally {
+                  setCatSaving(false);
+                }
+              }}
+            >
+              {catSaving ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Categories Dialog */}
+      <Dialog open={catListOpen} onOpenChange={setCatListOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Categories</DialogTitle>
+            <DialogDescription>Manage existing activity categories.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {catListLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Loading...
+              </div>
+            ) : catList.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No categories found.</p>
+            ) : (
+              catList.map((c) => {
+                const inUse = (c.usage_count || 0) > 0;
+                return (
+                <div key={c.category_id} className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">{c.display_name || c.category_name}</div>
+                    {c.description && (
+                      <div className="text-xs text-muted-foreground line-clamp-2">{c.description}</div>
+                    )}
+                    {inUse && (
+                      <div className="text-xs text-amber-600 mt-1">In use by {c.usage_count} activity(ies)</div>
+                    )}
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={inUse}
+                    onClick={async () => {
+                      const confirmed = window.confirm(`Delete category "${c.display_name || c.category_name}"?`);
+                      if (!confirmed) return;
+                      try {
+                        const res = await fetch(`/api/admin/activity-categories/${c.category_id}`, { method: 'DELETE' });
+                        const json = await res.json();
+                        if (!res.ok) throw new Error(json?.error || 'Failed to delete');
+                        toast.success('Category deleted');
+                        // Refresh list
+                        const r = await fetch('/api/admin/activity-categories');
+                        const j = await r.json();
+                        if (r.ok && Array.isArray(j.data)) setCatList(j.data);
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Unable to delete category');
+                      }
+                    }}
+                  >
+                    <Trash2 className="mr-2 size-4" /> Delete
+                  </Button>
+                </div>
+              );
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCatListOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

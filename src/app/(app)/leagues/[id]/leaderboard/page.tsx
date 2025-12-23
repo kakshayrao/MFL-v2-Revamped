@@ -29,6 +29,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -37,7 +44,9 @@ import { useLeagueLeaderboard } from '@/hooks/use-league-leaderboard';
 import {
   LeaderboardStats,
   LeagueTeamsTable,
+  LeagueSubTeamsTable,
   LeagueIndividualsTable,
+  ChallengeSpecificLeaderboard,
 } from '@/components/leaderboard';
 
 // ============================================================================
@@ -161,7 +170,7 @@ function TopPodium({ teams }: PodiumProps) {
 
 export default function LeaderboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = use(params);
-  const [view, setView] = useState<'teams' | 'individuals'>('teams');
+  const [view, setView] = useState<'teams' | 'subTeams' | 'individuals'>('teams');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
 
@@ -211,6 +220,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
   }
 
   const teams = data?.teams || [];
+  const subTeams = data?.subTeams || [];
   const individuals = data?.individuals || [];
   const stats = data?.stats || { total_submissions: 0, approved: 0, pending: 0, rejected: 0, total_rr: 0 };
   const dateRange = data?.dateRange;
@@ -311,30 +321,42 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
         <TopPodium teams={teams.slice(0, 3)} />
       </div>
 
-      {/* Data Tables */}
+      {/* Overall Leaderboard Tables */}
       <div className="px-4 lg:px-6">
-        <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'individuals')}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <TabsList>
-              <TabsTrigger value="teams" className="gap-2">
-                <Users className="size-4" />
-                Teams ({teams.length})
-              </TabsTrigger>
-              <TabsTrigger value="individuals" className="gap-2">
-                <Medal className="size-4" />
-                Individuals ({individuals.length})
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="teams" className="mt-0">
-            <LeagueTeamsTable teams={teams} />
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold">Overall Leaderboard</h2>
+          <p className="text-sm text-muted-foreground">Combined scores from workouts and challenges</p>
+        </div>
+        <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'subTeams' | 'individuals')}>
+          <TabsList>
+            <TabsTrigger value="teams" className="gap-2">
+              <Users className="size-4" />
+              Teams ({teams.length})
+            </TabsTrigger>
+            <TabsTrigger value="subTeams" className="gap-2">
+              <Users className="size-4" />
+              Sub-Teams ({subTeams.length})
+            </TabsTrigger>
+            <TabsTrigger value="individuals" className="gap-2">
+              <Medal className="size-4" />
+              Individuals ({individuals.length})
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="teams" className="mt-4">
+            <LeagueTeamsTable teams={teams} showAvgRR={true} />
           </TabsContent>
-
-          <TabsContent value="individuals" className="mt-0">
-            <LeagueIndividualsTable individuals={individuals} />
+          <TabsContent value="subTeams" className="mt-4">
+            <LeagueSubTeamsTable subTeams={subTeams} />
+          </TabsContent>
+          <TabsContent value="individuals" className="mt-4">
+            <LeagueIndividualsTable individuals={individuals} showAvgRR={true} />
           </TabsContent>
         </Tabs>
+      </div>
+
+      {/* Challenge-Specific Leaderboard */}
+      <div className="px-4 lg:px-6">
+        <ChallengeSpecificLeaderboard leagueId={leagueId} />
       </div>
     </div>
   );

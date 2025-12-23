@@ -32,6 +32,7 @@ export interface Challenge {
   name: string;
   description: string;
   type: "streak" | "count" | "cumulative";
+  challengeType: "individual" | "team" | "sub_team";
   category: string;
   difficulty: "easy" | "medium" | "hard";
   status: "active" | "upcoming" | "completed" | "draft";
@@ -50,6 +51,20 @@ interface ChallengeFormDialogProps {
   onSubmit: (data: Partial<Challenge>) => void;
 }
 
+type ChallengeFormData = {
+  name: string;
+  description: string;
+  type: Challenge["type"];
+  challengeType: Challenge["challengeType"];
+  category: string;
+  difficulty: Challenge["difficulty"];
+  status: Challenge["status"];
+  points: number;
+  duration: number;
+  startDate: string;
+  endDate: string;
+};
+
 // ============================================================================
 // ChallengeFormDialog Component
 // ============================================================================
@@ -62,13 +77,14 @@ export function ChallengeFormDialog({
 }: ChallengeFormDialogProps) {
   const isEditing = !!challenge;
 
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = React.useState<ChallengeFormData>({
     name: "",
     description: "",
-    type: "streak" as const,
+    type: "streak",
+    challengeType: "individual",
     category: "cardio",
-    difficulty: "medium" as const,
-    status: "draft" as const,
+    difficulty: "medium",
+    status: "draft",
     points: 100,
     duration: 7,
     startDate: "",
@@ -81,6 +97,7 @@ export function ChallengeFormDialog({
         name: challenge.name,
         description: challenge.description,
         type: challenge.type,
+        challengeType: challenge.challengeType,
         category: challenge.category,
         difficulty: challenge.difficulty,
         status: challenge.status,
@@ -94,6 +111,7 @@ export function ChallengeFormDialog({
         name: "",
         description: "",
         type: "streak",
+        challengeType: "individual",
         category: "cardio",
         difficulty: "medium",
         status: "draft",
@@ -158,7 +176,7 @@ export function ChallengeFormDialog({
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="type">Type</Label>
                 <Select
@@ -174,6 +192,24 @@ export function ChallengeFormDialog({
                     <SelectItem value="streak">Streak</SelectItem>
                     <SelectItem value="count">Count</SelectItem>
                     <SelectItem value="cumulative">Cumulative</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="challengeType">Challenge Type *</Label>
+                <Select
+                  value={formData.challengeType}
+                  onValueChange={(value: "individual" | "team" | "sub_team") =>
+                    setFormData({ ...formData, challengeType: value })
+                  }
+                >
+                  <SelectTrigger id="challengeType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">Individual</SelectItem>
+                    <SelectItem value="team">Team</SelectItem>
+                    <SelectItem value="sub_team">Sub-Team</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

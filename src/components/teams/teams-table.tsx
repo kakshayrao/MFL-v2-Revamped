@@ -143,6 +143,7 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
 
   const [selectedTeam, setSelectedTeam] = React.useState<TeamWithDetails | null>(null);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
+  const [pointsMap, setPointsMap] = React.useState<Map<string, number> | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [loadingTeamMembers, setLoadingTeamMembers] = React.useState(false);
 
@@ -167,6 +168,34 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
   // ============================================================================
   // Handlers
   // ============================================================================
+
+  // Fetch leaderboard points map for the league so dialogs can show per-user points
+  React.useEffect(() => {
+    let mounted = true;
+    async function fetchPoints() {
+      try {
+        const res = await fetch(`/api/leagues/${leagueId}/leaderboard?full=true`);
+        const json = await res.json();
+        if (mounted && res.ok && json?.success && json.data?.individuals) {
+          console.debug('[TeamsTable] leaderboard individuals count:', json.data.individuals.length);
+          console.debug('[TeamsTable] sample individuals:', json.data.individuals.slice(0,5));
+          const map = new Map<string, number>(
+            json.data.individuals.map((i: any) => [String(i.user_id), Number(i.points || 0)])
+          );
+          console.debug('[TeamsTable] built pointsMap size:', map.size);
+          setPointsMap(map);
+        }
+      } catch (err) {
+        console.error('Error fetching leaderboard points:', err);
+      }
+    }
+
+    if (leagueId) fetchPoints();
+    return () => {
+      mounted = false;
+    };
+  }, [leagueId]);
+
 
   const handleCreateTeam = async (teamName: string): Promise<boolean> => {
     const success = await createTeam(teamName);
@@ -213,7 +242,13 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
       const response = await fetch(`/api/leagues/${leagueId}/teams/${team.team_id}/members`);
       const result = await response.json();
       if (result.success) {
-        setTeamMembers(result.data);
+          console.debug('[TeamsTable] fetched team members count:', (result.data || []).length);
+          const membersWithPoints = (result.data || []).map((m: any) => ({
+            ...m,
+            points: pointsMap?.get(String(m.user_id)) ?? 0,
+          }));
+          console.debug('[TeamsTable] membersWithPoints sample:', membersWithPoints.slice(0,5));
+          setTeamMembers(membersWithPoints as TeamMember[]);
       }
     } catch (err) {
       console.error("Error fetching team members:", err);
@@ -231,7 +266,11 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
       const response = await fetch(`/api/leagues/${leagueId}/teams/${team.team_id}/members`);
       const result = await response.json();
       if (result.success) {
-        setTeamMembers(result.data);
+        const membersWithPoints = (result.data || []).map((m: any) => ({
+          ...m,
+          points: pointsMap?.get(String(m.user_id)) ?? 0,
+        }));
+        setTeamMembers(membersWithPoints as TeamMember[]);
       }
     } catch (err) {
       console.error("Error fetching team members:", err);
@@ -267,6 +306,16 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
       toast.success("Governor assigned successfully");
     } else {
       toast.error("Failed to assign governor");
+    }
+    return success;
+  };
+
+  const handleRemoveGovernor = async (userId: string): Promise<boolean> => {
+    const success = await removeGovernor(userId);
+    if (success) {
+      toast.success("Governor removed successfully");
+    } else {
+      toast.error("Failed to remove governor");
     }
     return success;
   };
@@ -436,7 +485,7 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
             {isHost && (
               <Button variant="outline" onClick={() => setAssignGovernorDialogOpen(true)}>
                 <Shield className="mr-2 size-4" />
-                {data?.governor ? "Change Governor" : "Assign Governor"}
+                {data?.governors && data.governors.length > 0 ? "Manage Governors" : "Assign Governor"}
               </Button>
             )}
             <Button
@@ -450,16 +499,18 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
         )}
       </div>
 
-      {/* Governor Info */}
-      {data?.governor && (
+      {/* Governors Info */}
+      {data?.governors && data.governors.length > 0 && (
         <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20">
           <div className="flex size-10 items-center justify-center rounded-lg bg-blue-500/10">
             <Shield className="size-5 text-blue-500" />
           </div>
           <div className="flex-1">
-            <p className="font-medium text-sm">Governor: {data.governor.username}</p>
+            <p className="font-medium text-sm">
+              {data.governors.length === 1 ? 'Governor' : 'Governors'}: {data.governors.map(g => g.username).join(', ')}
+            </p>
             <p className="text-xs text-muted-foreground">
-              Has oversight of all teams and can validate any submission
+              {data.governors.length === 1 ? 'Has' : 'Have'} oversight of all teams and can validate any submission
             </p>
           </div>
         </div>
@@ -630,7 +681,10 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
           teamName={selectedTeam.team_name}
           teamSize={data?.league.team_size || 0}
           currentMemberCount={selectedTeam.member_count}
-          unallocatedMembers={data?.members.unallocated || []}
+          unallocatedMembers={(data?.members.unallocated || []).map((m: any) => ({
+            ...m,
+            points: pointsMap?.get(String(m.user_id)) ?? 0,
+          }))}
           onAddMember={handleAddMember}
         />
       )}
@@ -652,16 +706,23 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
       <AssignGovernorDialog
         open={assignGovernorDialogOpen}
         onOpenChange={setAssignGovernorDialogOpen}
-        members={[...(data?.members.allocated || []), ...(data?.members.unallocated || [])]}
-        currentGovernor={data?.governor || null}
+        members={[...(data?.members.allocated || []), ...(data?.members.unallocated || [])].map((m: any) => ({
+          ...m,
+          points: pointsMap?.get(String(m.user_id)) ?? 0,
+        }))}
+        currentGovernors={data?.governors || []}
         hostUserId={data?.league.host_user_id || ""}
         onAssignGovernor={handleAssignGovernor}
+        onRemoveGovernor={handleRemoveGovernor}
       />
 
       <ViewUnallocatedDialog
         open={viewUnallocatedDialogOpen}
         onOpenChange={setViewUnallocatedDialogOpen}
-        members={data?.members.unallocated || []}
+        members={(data?.members.unallocated || []).map((m: any) => ({
+          ...m,
+          points: pointsMap?.get(String(m.user_id)) ?? 0,
+        }))}
       />
 
       {selectedTeam && (

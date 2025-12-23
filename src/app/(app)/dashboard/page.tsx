@@ -88,28 +88,24 @@ export default function DashboardPage() {
       {
         title: 'Total Leagues',
         value: userLeagues.length,
-        change: 12.5,
         changeLabel: 'Growing strong',
         description: 'Leagues you are a member of',
       },
       {
         title: 'Active Leagues',
         value: activeLeagues,
-        change: activeLeagues > 0 ? 8.2 : 0,
         changeLabel: activeLeagues > 0 ? 'In progress' : 'No active leagues',
         description: 'Currently running leagues',
       },
       {
         title: 'Hosting',
         value: hostingCount,
-        change: hostingCount > 0 ? 5.0 : -2.5,
         changeLabel: hostingCount > 0 ? 'League creator' : 'Create your first',
         description: 'Leagues you created',
       },
       {
         title: 'Leadership Roles',
         value: governorCount + captainCount,
-        change: governorCount + captainCount > 0 ? 15.3 : 0,
         changeLabel: 'Governor & Captain',
         description: 'Management positions held',
       },
@@ -203,11 +199,6 @@ function SectionCards({ stats }: { stats: StatCard[] }) {
                 {stat.value}
               </CardTitle>
               <CardAction>
-                <Badge variant="outline">
-                  <TrendIcon className="size-3" />
-                  {isPositive ? '+' : ''}
-                  {stat.change}%
-                </Badge>
               </CardAction>
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1.5 text-sm">

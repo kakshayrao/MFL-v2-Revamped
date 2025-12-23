@@ -1,5 +1,5 @@
 /**
- * GET /api/leagues/[id]/governor - Get current governor
+ * GET /api/leagues/[id]/governor - Get current governors
  * POST /api/leagues/[id]/governor - Assign governor (Host only)
  * DELETE /api/leagues/[id]/governor - Remove governor (Host only)
  */
@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth/config';
 import { z } from 'zod';
-import { assignGovernor, removeGovernor, getLeagueGovernor } from '@/lib/services/teams';
+import { assignGovernor, removeGovernor, getLeagueGovernors } from '@/lib/services/teams';
 import { userHasAnyRole } from '@/lib/services/roles';
 import { getSupabaseServiceRole } from '@/lib/supabase/client';
 
@@ -55,11 +55,11 @@ export async function GET(
       );
     }
 
-    const governor = await getLeagueGovernor(leagueId);
+    const governors = await getLeagueGovernors(leagueId);
 
     return NextResponse.json({
       success: true,
-      data: governor,
+      data: governors,
     });
   } catch (error) {
     console.error('Error fetching governor:', error);
@@ -149,17 +149,18 @@ export async function DELETE(
       );
     }
 
-    // Get current governor
-    const governor = await getLeagueGovernor(leagueId);
+    // Get user_id from request body
+    const body = await request.json();
+    const { user_id } = body;
 
-    if (!governor) {
+    if (!user_id) {
       return NextResponse.json(
-        { error: 'No governor assigned to this league' },
+        { error: 'user_id is required' },
         { status: 400 }
       );
     }
 
-    const success = await removeGovernor(governor.user_id, leagueId);
+    const success = await removeGovernor(user_id, leagueId);
 
     if (!success) {
       return NextResponse.json(

@@ -106,11 +106,18 @@ export default function MyTeamPage({
   const { activeLeague } = useLeague();
   const { isCaptain } = useRole();
 
+  console.debug('[MyTeamPage] render', { leagueId, activeLeague });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [teamRank, setTeamRank] = useState<string>('#--');
+  const [teamPoints, setTeamPoints] = useState<string>('--');
+  const [teamAvgRR, setTeamAvgRR] = useState<string>('--');
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
   const userTeamId = activeLeague?.team_id;
   const userTeamName = activeLeague?.team_name;
@@ -123,6 +130,8 @@ export default function MyTeamPage({
         setIsLoading(false);
         return;
       }
+
+      console.debug('[MyTeamPage] fetchMembers start', { leagueId, userTeamId });
 
       try {
         setIsLoading(true);
@@ -137,7 +146,53 @@ export default function MyTeamPage({
         }
 
         if (result.success) {
-          setMembers(result.data);
+          // Map members and attach default points
+          let membersWithPoints = (result.data || []).map((m: any) => ({ ...m, points: 0 }));
+
+          // Try to fetch full leaderboard to get individual points
+          try {
+            const lbRes = await fetch(`/api/leagues/${leagueId}/leaderboard?full=true`);
+            const lbJson = await lbRes.json();
+            if (lbRes.ok && lbJson?.success && lbJson.data?.individuals) {
+              console.debug('[MyTeamPage] leaderboard individuals count:', lbJson.data.individuals.length);
+              console.debug('[MyTeamPage] sample individuals:', lbJson.data.individuals.slice(0,5));
+              const pts = new Map<string, number>(
+                lbJson.data.individuals.map((i: any) => [String(i.user_id), Number(i.points || 0)])
+              );
+              console.debug('[MyTeamPage] built points map size:', pts.size);
+              membersWithPoints = membersWithPoints.map((m: any) => ({ ...m, points: pts.get(String(m.user_id)) || 0 }));
+            }
+          } catch (err) {
+            console.error('Error fetching leaderboard for points:', err);
+          }
+
+          setMembers(membersWithPoints);
+
+          // Also attempt to fetch leaderboard stats now that we have team id
+          try {
+            console.debug('[MyTeamPage] fetching leaderboard from fetchMembers');
+            const res2 = await fetch(`/api/leagues/${leagueId}/leaderboard`);
+            const json2 = await res2.json();
+            console.debug('[MyTeamPage] leaderboard from fetchMembers ok:', res2.ok, 'status:', res2.status, 'keys:', Object.keys(json2 || {}));
+            if (!res2.ok) {
+              setLeaderboardError(`Leaderboard request failed: ${res2.status}`);
+            } else {
+              setLeaderboardError(null);
+            }
+            if (res2.ok && json2?.success && json2.data?.teams) {
+              const teams2: any[] = json2.data.teams || [];
+              const team2 = teams2.find((t) => String(t.team_id) === String(userTeamId));
+              console.debug('[MyTeamPage] matched team (from fetchMembers):', team2);
+              if (team2) {
+                setTeamRank(`#${team2.rank ?? '--'}`);
+                const pts2 = team2.total_points ?? team2.points ?? 0;
+                setTeamPoints(String(pts2));
+                setTeamAvgRR(String(team2.avg_rr ?? 0));
+              }
+            }
+          } catch (err) {
+            console.error('Error fetching leaderboard inside fetchMembers:', err);
+          }
         }
       } catch (err) {
         console.error('Error fetching team members:', err);
@@ -174,7 +229,7 @@ export default function MyTeamPage({
   const stats = [
     {
       title: 'Team Rank',
-      value: '#--',
+      value: teamRank,
       description: 'League standing',
       detail: 'Rank updates daily',
       icon: Trophy,
@@ -187,20 +242,55 @@ export default function MyTeamPage({
       icon: Users,
     },
     {
-      title: 'Pending Validations',
-      value: '--',
-      description: 'Awaiting review',
-      detail: 'From your team',
+      title: 'Team Points',
+      value: String(teamPoints),
+      description: 'Total RR',
+      detail: 'Combined team effort',
       icon: Target,
     },
     {
-      title: 'Team Streak',
-      value: '-- days',
-      description: 'Consecutive activity',
-      detail: 'Keep it up!',
+      title: 'Team RR',
+      value: String(teamAvgRR),
+      description: 'Average RR',
+      detail: 'Average RR per approved entry',
       icon: Flame,
     },
   ];
+
+  // Fetch leaderboard to populate team rank/points/avg rr
+  useEffect(() => {
+    async function fetchLeaderboardStats() {
+      if (!leagueId || !userTeamId) return;
+      try {
+        console.debug('[MyTeamPage] fetchLeaderboardStats start', { leagueId, userTeamId });
+        const res = await fetch(`/api/leagues/${leagueId}/leaderboard`);
+        const json = await res.json();
+        console.debug('[MyTeamPage] leaderboard response ok:', res.ok, 'status:', res.status, 'body keys:', Object.keys(json || {}));
+        console.debug('[MyTeamPage] leaderboard teams length:', json?.data?.teams?.length ?? 0);
+        if (!res.ok) {
+          setLeaderboardError(`Leaderboard request failed: ${res.status}`);
+        } else {
+          setLeaderboardError(null);
+        }
+        if (res.ok && json?.success && json.data?.teams) {
+          const teams: any[] = json.data.teams || [];
+          const team = teams.find((t) => String(t.team_id) === String(userTeamId));
+          console.debug('[MyTeamPage] matched team:', team);
+          if (team) {
+            setTeamRank(`#${team.rank ?? '--'}`);
+            // team.total_points is preferred
+            const pts = team.total_points ?? team.points ?? 0;
+            setTeamPoints(String(pts));
+            setTeamAvgRR(String(team.avg_rr ?? 0));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching leaderboard stats for team:', err);
+      }
+    }
+
+    fetchLeaderboardStats();
+  }, [leagueId, userTeamId]);
 
   // Check if user is captain
   if (!isCaptain) {
@@ -277,6 +367,15 @@ export default function MyTeamPage({
         </div>
       )}
 
+      {leaderboardError && (
+        <div className="px-4 lg:px-6">
+          <Alert variant="destructive">
+            <AlertTitle>Leaderboard Error</AlertTitle>
+            <AlertDescription>{leaderboardError}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
         {stats.map((stat, index) => {
@@ -332,7 +431,7 @@ export default function MyTeamPage({
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead className="text-center">Email</TableHead>
+                <TableHead className="text-center">Points</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -377,7 +476,7 @@ export default function MyTeamPage({
                       )}
                     </TableCell>
                     <TableCell className="text-center text-muted-foreground text-sm">
-                      {member.email}
+                      {(member as any).points ?? 0}
                     </TableCell>
                   </TableRow>
                 ))

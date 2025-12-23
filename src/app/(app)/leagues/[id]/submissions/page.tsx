@@ -251,6 +251,7 @@ export default function AllSubmissionsPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [tableAwardedPoints, setTableAwardedPoints] = useState<Record<string, number | ''>>({});
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -292,7 +293,7 @@ export default function AllSubmissionsPage({
   }, [leagueId]);
 
   // Handle validation (approve/reject)
-  const handleValidate = async (submissionId: string, newStatus: 'approved' | 'rejected') => {
+  const handleValidate = async (submissionId: string, newStatus: 'approved' | 'rejected', awardedPoints?: number | null) => {
     // Find the submission to get its current status
     const submission = submissions.find((s) => s.id === submissionId);
     if (!submission) return;
@@ -305,10 +306,12 @@ export default function AllSubmissionsPage({
     try {
       setValidatingId(submissionId);
 
+      const body: any = { status: newStatus };
+      if (awardedPoints !== undefined) body.awardedPoints = awardedPoints;
       const response = await fetch(`/api/submissions/${submissionId}/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(body),
       });
 
       const result = await response.json();
@@ -468,20 +471,30 @@ export default function AllSubmissionsPage({
             </Button>
             {/* Show approve button if pending OR if Host/Governor wants to override to approved */}
             {(isPending || (canOverride && currentStatus !== 'approved')) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                onClick={() => handleValidate(row.original.id, 'approved')}
-                disabled={isValidating}
-                title={isPending ? 'Approve' : 'Override to Approved'}
-              >
-                {isValidating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Check className="size-4" />
-                )}
-              </Button>
+              <>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Pts"
+                  value={tableAwardedPoints[row.original.id] ?? ''}
+                  onChange={(e) => setTableAwardedPoints((p) => ({ ...p, [row.original.id]: e.target.value === '' ? '' : Number(e.target.value) }))}
+                  className="w-20"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  onClick={() => handleValidate(row.original.id, 'approved', tableAwardedPoints[row.original.id] === '' ? undefined : (tableAwardedPoints[row.original.id] as number))}
+                  disabled={isValidating}
+                  title={isPending ? 'Approve' : 'Override to Approved'}
+                >
+                  {isValidating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Check className="size-4" />
+                  )}
+                </Button>
+              </>
             )}
             {/* Show reject button if pending OR if Host/Governor wants to override to rejected */}
             {(isPending || (canOverride && currentStatus !== 'rejected')) && (
@@ -489,7 +502,7 @@ export default function AllSubmissionsPage({
                 variant="ghost"
                 size="icon"
                 className="size-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={() => handleValidate(row.original.id, 'rejected')}
+                onClick={() => handleValidate(row.original.id, 'rejected', null)}
                 disabled={isValidating}
                 title={isPending ? 'Reject' : 'Override to Rejected'}
               >

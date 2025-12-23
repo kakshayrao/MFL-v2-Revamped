@@ -53,7 +53,7 @@ export interface LeagueTeamsData {
     allocated: LeagueMember[];
     unallocated: LeagueMember[];
   };
-  governor: Governor | null;
+  governors: Governor[];
   league: {
     league_id: string;
     league_name: string;
@@ -81,7 +81,7 @@ interface UseLeagueTeamsReturn {
   assignCaptain: (teamId: string, userId: string) => Promise<boolean>;
   removeCaptain: (teamId: string) => Promise<boolean>;
   assignGovernor: (userId: string) => Promise<boolean>;
-  removeGovernor: () => Promise<boolean>;
+  removeGovernor: (userId: string) => Promise<boolean>;
 }
 
 // ============================================================================
@@ -309,12 +309,14 @@ export function useLeagueTeams(leagueId: string | null): UseLeagueTeamsReturn {
     }
   };
 
-  const removeGovernor = async (): Promise<boolean> => {
+  const removeGovernor = async (userId: string): Promise<boolean> => {
     if (!leagueId) return false;
 
     try {
       const response = await fetch(`/api/leagues/${leagueId}/governor`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
       });
 
       const result = await response.json();

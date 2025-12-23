@@ -33,6 +33,16 @@ export interface IndividualRanking {
   submission_count: number;
 }
 
+export interface SubTeamRanking {
+  rank: number;
+  subteam_id: string;
+  subteam_name: string;
+  team_id: string | null;
+  team_name: string | null;
+  points: number;
+  submission_count: number;
+}
+
 export interface LeaderboardStats {
   total_submissions: number;
   approved: number;
@@ -55,7 +65,10 @@ export interface LeagueInfo {
 
 export interface LeaderboardData {
   teams: TeamRanking[];
+  subTeams: SubTeamRanking[];
   individuals: IndividualRanking[];
+  challengeTeams: TeamRanking[];
+  challengeIndividuals: IndividualRanking[];
   stats: LeaderboardStats;
   dateRange: DateRange;
   league: LeagueInfo;

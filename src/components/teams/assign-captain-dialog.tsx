@@ -162,7 +162,7 @@ export function AssignCaptainDialog({
                             {member.username}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {member.email}
+                            Points: {(member as any).points ?? 0}
                           </p>
                         </div>
                         {isCurrent && (

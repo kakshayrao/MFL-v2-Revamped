@@ -8,3 +8,4 @@ export * from './admin-leagues';
 export * from './admin-activities';
 export * from './admin-roles';
 export * from './admin-stats';
+export * from './admin-challenges';

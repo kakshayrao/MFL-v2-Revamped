@@ -20,7 +20,7 @@ interface ViewTeamMembersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teamName: string;
-  members: TeamMember[];
+  members: (TeamMember & { points?: number })[];
   isLoading?: boolean;
 }
 
@@ -137,7 +137,7 @@ export function ViewTeamMembersDialog({
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {member.email}
+                        Points: {(member as any).points ?? 0}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">

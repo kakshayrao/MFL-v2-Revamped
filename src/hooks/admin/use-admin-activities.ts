@@ -30,6 +30,7 @@ export function useAdminActivities(filters?: AdminActivityFilters): UseAdminActi
     try {
       const params = new URLSearchParams();
       if (filters?.search) params.set("search", filters.search);
+      if (filters?.category_id) params.set("category_id", filters.category_id);
 
       const response = await fetch(`/api/admin/activities?${params.toString()}`);
       const result = await response.json();
@@ -45,7 +46,7 @@ export function useAdminActivities(filters?: AdminActivityFilters): UseAdminActi
     } finally {
       setIsLoading(false);
     }
-  }, [filters?.search]);
+  }, [filters?.search, filters?.category_id]);
 
   useEffect(() => {
     fetchActivities();

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { LeagueMember, Governor } from "@/hooks/use-league-teams";
 
@@ -24,21 +24,23 @@ interface AssignGovernorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   members: LeagueMember[];
-  currentGovernor: Governor | null;
+  currentGovernors: Governor[];
   hostUserId: string;
   onAssignGovernor: (userId: string) => Promise<boolean>;
+  onRemoveGovernor: (userId: string) => Promise<boolean>;
 }
 
 export function AssignGovernorDialog({
   open,
   onOpenChange,
   members,
-  currentGovernor,
+  currentGovernors,
   hostUserId,
   onAssignGovernor,
+  onRemoveGovernor,
 }: AssignGovernorDialogProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = React.useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = React.useState(false);
 
   // Filter out host from eligible members (host is identified by host_user_id, not roles)
@@ -50,9 +52,10 @@ export function AssignGovernorDialog({
   React.useEffect(() => {
     if (open) {
       setSearchQuery("");
-      setSelectedUserId(currentGovernor?.user_id || null);
+      const currentGovernorIds = new Set(currentGovernors.map(g => g.user_id));
+      setSelectedUserIds(currentGovernorIds);
     }
-  }, [open, currentGovernor]);
+  }, [open, currentGovernors]);
 
   const filteredMembers = React.useMemo(() => {
     if (!searchQuery.trim()) return eligibleMembers;
@@ -64,18 +67,40 @@ export function AssignGovernorDialog({
     );
   }, [eligibleMembers, searchQuery]);
 
-  const handleAssign = async () => {
-    if (!selectedUserId || selectedUserId === currentGovernor?.user_id) {
-      onOpenChange(false);
-      return;
-    }
+  const handleToggleGovernor = (userId: string) => {
+    setSelectedUserIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
 
+  const handleSave = async () => {
     setIsLoading(true);
     try {
-      const success = await onAssignGovernor(selectedUserId);
-      if (success) {
-        onOpenChange(false);
+      const currentGovernorIds = new Set(currentGovernors.map(g => g.user_id));
+      
+      // Find governors to add (selected but not currently assigned)
+      const toAdd = Array.from(selectedUserIds).filter(id => !currentGovernorIds.has(id));
+      
+      // Find governors to remove (currently assigned but not selected)
+      const toRemove = Array.from(currentGovernorIds).filter(id => !selectedUserIds.has(id));
+
+      // Process all additions
+      for (const userId of toAdd) {
+        await onAssignGovernor(userId);
       }
+
+      // Process all removals
+      for (const userId of toRemove) {
+        await onRemoveGovernor(userId);
+      }
+
+      onOpenChange(false);
     } finally {
       setIsLoading(false);
     }
@@ -87,11 +112,11 @@ export function AssignGovernorDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="size-5 text-blue-500" />
-            Assign Governor
+            Manage Governors
           </DialogTitle>
           <DialogDescription>
-            Select a league member to be the governor. The governor has oversight
-            of all teams and can validate any submission. Only one governor can
+            Select league members to be governors. Governors have oversight
+            of all teams and can validate any submission. Multiple governors can
             be assigned per league.
           </DialogDescription>
         </DialogHeader>
@@ -119,27 +144,24 @@ export function AssignGovernorDialog({
                 </p>
               </div>
             ) : (
-              <RadioGroup
-                value={selectedUserId || ""}
-                onValueChange={setSelectedUserId}
-                className="p-2 space-y-1"
-              >
+              <div className="p-2 space-y-1">
                 {filteredMembers.map((member) => {
-                  const isCurrent = member.user_id === currentGovernor?.user_id;
+                  const isSelected = selectedUserIds.has(member.user_id);
                   const isGovernor = member.roles.includes("governor");
 
                   return (
                     <div
                       key={member.user_id}
                       className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                        selectedUserId === member.user_id
+                        isSelected
                           ? "bg-primary/5 border-primary"
                           : "hover:bg-muted/50"
                       }`}
                     >
-                      <RadioGroupItem
-                        value={member.user_id}
+                      <Checkbox
                         id={`gov-${member.user_id}`}
+                        checked={isSelected}
+                        onCheckedChange={() => handleToggleGovernor(member.user_id)}
                       />
                       <Label
                         htmlFor={`gov-${member.user_id}`}
@@ -167,7 +189,7 @@ export function AssignGovernorDialog({
                             {member.username}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {member.email}
+                            Points: {(member as any).points ?? 0}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
@@ -188,17 +210,12 @@ export function AssignGovernorDialog({
                                 {role}
                               </Badge>
                             ))}
-                          {isCurrent && (
-                            <Badge className="bg-blue-500/10 text-blue-600 border-blue-200">
-                              Current
-                            </Badge>
-                          )}
                         </div>
                       </Label>
                     </div>
                   );
                 })}
-              </RadioGroup>
+              </div>
             )}
           </ScrollArea>
         </div>
@@ -212,18 +229,18 @@ export function AssignGovernorDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleAssign}
-            disabled={isLoading || !selectedUserId || eligibleMembers.length === 0}
+            onClick={handleSave}
+            disabled={isLoading || eligibleMembers.length === 0}
           >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                Assigning...
+                Saving...
               </>
             ) : (
               <>
                 <Shield className="mr-2 size-4" />
-                Assign Governor
+                Save Changes
               </>
             )}
           </Button>

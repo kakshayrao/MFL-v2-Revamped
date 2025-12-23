@@ -64,7 +64,9 @@ export async function GET(
       );
     }
 
+    console.log('[Team Members API] Fetching members for team:', teamId, 'league:', leagueId);
     const members = await getTeamMembers(teamId, leagueId);
+    console.log('[Team Members API] Fetched members:', members);
 
     return NextResponse.json({
       success: true,

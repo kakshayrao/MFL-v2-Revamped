@@ -18,6 +18,12 @@ export interface LeagueActivity {
   activity_id: string;
   activity_name: string;
   description: string | null;
+  category_id: string | null;
+  category?: {
+    category_id: string;
+    category_name: string;
+    display_name: string;
+  } | null;
   value: string; // Normalized name for workout_type (e.g., "run", "cycling")
 }
 
@@ -92,7 +98,17 @@ export async function GET(
 
     const isHost = league?.created_by === session.user.id;
 
-    if (!membership && !isHost) {
+    // Check if user is Governor in this league
+    const { data: roleData } = await supabase
+      .from('assignedrolesforleague')
+      .select('roles(role_name)')
+      .eq('user_id', session.user.id)
+      .eq('league_id', leagueId);
+
+    const roleNames = (roleData || []).map((r: any) => r.roles?.role_name).filter(Boolean);
+    const isGovernor = roleNames.includes('Governor');
+
+    if (!membership && !isHost && !isGovernor) {
       return NextResponse.json(
         { error: 'You are not a member of this league' },
         { status: 403 }
@@ -104,7 +120,13 @@ export async function GET(
       .from('leagueactivities')
       .select(`
         activity_id,
-        activities(activity_id, activity_name, description)
+        activities(
+          activity_id, 
+          activity_name, 
+          description,
+          category_id,
+          activity_categories(category_id, category_name, display_name)
+        )
       `)
       .eq('league_id', leagueId);
 
@@ -125,6 +147,8 @@ export async function GET(
           activity_id: activity.activity_id,
           activity_name: activity.activity_name,
           description: activity.description,
+          category_id: activity.category_id,
+          category: activity.activity_categories,
           value: normalizeActivityName(activity.activity_name),
         };
       });
@@ -134,14 +158,22 @@ export async function GET(
     if (includeAll && isHost) {
       const { data: allActs, error: allError } = await supabase
         .from('activities')
-        .select('activity_id, activity_name, description')
+        .select(`
+          activity_id, 
+          activity_name, 
+          description,
+          category_id,
+          activity_categories(category_id, category_name, display_name)
+        `)
         .order('activity_name');
 
       if (!allError && allActs) {
-        allActivities = allActs.map((a) => ({
+        allActivities = allActs.map((a: any) => ({
           activity_id: a.activity_id,
           activity_name: a.activity_name,
           description: a.description,
+          category_id: a.category_id,
+          category: a.activity_categories,
           value: normalizeActivityName(a.activity_name),
         }));
       }

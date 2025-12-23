@@ -11,7 +11,7 @@ import {
   getTeamCountForLeague,
   createTeamForLeague,
   getLeagueMembersWithTeams,
-  getLeagueGovernor,
+  getLeagueGovernors,
 } from '@/lib/services/teams';
 import { getLeagueById } from '@/lib/services/leagues';
 import { userHasAnyRole } from '@/lib/services/roles';
@@ -74,8 +74,8 @@ export async function GET(
     console.log('[GET Teams] League:', leagueId, 'Allocated:', allocated.length, 'Unallocated:', unallocated.length);
     console.log('[GET Teams] Unallocated members:', unallocated.map(m => ({ user_id: m.user_id, username: m.username })));
 
-    // Get governor info
-    const governor = await getLeagueGovernor(leagueId);
+    // Get governors info
+    const governors = await getLeagueGovernors(leagueId);
 
     return NextResponse.json({
       success: true,
@@ -85,7 +85,7 @@ export async function GET(
           allocated,
           unallocated,
         },
-        governor,
+        governors,
         league: {
           league_id: league.league_id,
           league_name: league.league_name,
