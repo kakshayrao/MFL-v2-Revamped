@@ -21,6 +21,38 @@ function minDateString(a: string, b: string): string {
   return a <= b ? a : b;
 }
 
+function maxDateString(a: string, b: string): string {
+  return a >= b ? a : b;
+}
+
+function parseLocalYYYYMMDD(dateString: string): Date | null {
+  const match = /^\d{4}-\d{2}-\d{2}$/.exec(dateString);
+  if (!match) return null;
+  const [y, m, d] = dateString.split('-').map((p) => Number(p));
+  if (!y || !m || !d) return null;
+  const dt = new Date(y, m - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function addDaysYYYYMMDD(dateString: string, days: number): string {
+  const dt = parseLocalYYYYMMDD(dateString);
+  if (!dt) return dateString;
+  dt.setDate(dt.getDate() + days);
+  return formatDateYYYYMMDD(dt);
+}
+
+function uniqueStringsPreserveOrder(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -64,6 +96,20 @@ export interface LeaderboardStats {
   pending: number;
   rejected: number;
   total_rr: number;
+}
+
+export interface PendingTeamWindowRanking {
+  rank: number;
+  team_id: string;
+  team_name: string;
+  total_points: number;
+  avg_rr: number;
+  pointsByDate: Record<string, number>;
+}
+
+export interface PendingWindow {
+  dates: string[];
+  teams: PendingTeamWindowRanking[];
 }
 
 // ============================================================================
@@ -115,6 +161,20 @@ export async function GET(
       return formatDateYYYYMMDD(d);
     })();
     const effectiveEndDate = minDateString(String(filterEndDate), cutoff);
+
+    // Compute the 2-day "pending" window (today/yesterday by default).
+    // These dates are NOT included in the main leaderboard due to the 2-day delay.
+    // When a new day begins, the older pending day automatically becomes <= cutoff
+    // and rolls into the main leaderboard via `effectiveEndDate`.
+    const todayYYYYMMDD = formatDateYYYYMMDD(new Date());
+    const pendingWindowEnd = minDateString(String(filterEndDate), todayYYYYMMDD);
+    const pendingWindowStart = addDaysYYYYMMDD(pendingWindowEnd, -1);
+    const pendingWindowDates = uniqueStringsPreserveOrder([
+      pendingWindowEnd,
+      pendingWindowStart,
+    ])
+      .filter((d) => d >= filterStartDate && d <= String(filterEndDate))
+      .filter((d) => d > effectiveEndDate);
 
     // =========================================================================
     // Get all teams in the league via teamleagues
@@ -194,6 +254,34 @@ export async function GET(
     if (entriesError) {
       console.error('Error fetching entries:', entriesError);
       return NextResponse.json({ error: 'Failed to fetch entries' }, { status: 500 });
+    }
+
+    // =========================================================================
+    // Fetch pending-window effort entries (today/yesterday), excluded from main due to delay
+    // =========================================================================
+    let pendingEntries: Array<{
+      league_member_id: string;
+      date: string;
+      rr_value: number | null;
+      status: string;
+    }> = [];
+
+    if (pendingWindowDates.length > 0) {
+      const pendingStart = pendingWindowDates.reduce((min, d) => (d < min ? d : min), pendingWindowDates[0]);
+      const pendingEnd = pendingWindowDates.reduce((max, d) => (d > max ? d : max), pendingWindowDates[0]);
+
+      const { data: pendingData, error: pendingError } = await supabase
+        .from('effortentry')
+        .select('league_member_id, date, rr_value, status')
+        .in('league_member_id', memberIds)
+        .gte('date', maxDateString(pendingStart, filterStartDate))
+        .lte('date', pendingEnd);
+
+      if (pendingError) {
+        console.error('Error fetching pending-window entries:', pendingError);
+      } else {
+        pendingEntries = (pendingData as any[]) || [];
+      }
     }
 
     // =========================================================================
@@ -435,6 +523,74 @@ export async function GET(
       .map((team, index) => ({ ...team, rank: index + 1 }));
 
     // =========================================================================
+    // Calculate pending-window team rankings (today/yesterday)
+    // =========================================================================
+    const pendingWindowTeams: PendingTeamWindowRanking[] = (() => {
+      if (pendingWindowDates.length === 0) return [];
+
+      const pointsByTeamDate = new Map<string, Map<string, number>>();
+      const rrAggByTeam = new Map<string, { total_rr: number; rr_count: number }>();
+
+      // Initialize maps for all teams so UI is stable.
+      for (const ts of teamStats.values()) {
+        const dateMap = new Map<string, number>();
+        for (const d of pendingWindowDates) dateMap.set(d, 0);
+        pointsByTeamDate.set(ts.team_id, dateMap);
+        rrAggByTeam.set(ts.team_id, { total_rr: 0, rr_count: 0 });
+      }
+
+      for (const entry of pendingEntries) {
+        if (!pendingWindowDates.includes(entry.date)) continue;
+        if (entry.status !== 'approved') continue;
+
+        const memberInfo = memberToUser.get(entry.league_member_id);
+        if (!memberInfo?.team_id) continue;
+        const teamId = memberInfo.team_id;
+
+        const teamDateMap = pointsByTeamDate.get(teamId);
+        if (!teamDateMap) continue;
+        teamDateMap.set(entry.date, (teamDateMap.get(entry.date) || 0) + 1);
+
+        if (entry.rr_value && entry.rr_value > 0) {
+          const agg = rrAggByTeam.get(teamId) || { total_rr: 0, rr_count: 0 };
+          agg.total_rr += entry.rr_value;
+          agg.rr_count += 1;
+          rrAggByTeam.set(teamId, agg);
+        }
+      }
+
+      const out: PendingTeamWindowRanking[] = Array.from(teamStats.values()).map((ts) => {
+        const dateMap = pointsByTeamDate.get(ts.team_id) || new Map<string, number>();
+        const pointsByDate: Record<string, number> = {};
+        let total = 0;
+        for (const d of pendingWindowDates) {
+          const v = dateMap.get(d) || 0;
+          pointsByDate[d] = v;
+          total += v;
+        }
+
+        const rrAgg = rrAggByTeam.get(ts.team_id) || { total_rr: 0, rr_count: 0 };
+        const avg_rr = rrAgg.rr_count > 0 ? Math.round((rrAgg.total_rr / rrAgg.rr_count) * 100) / 100 : 0;
+
+        return {
+          rank: 0,
+          team_id: ts.team_id,
+          team_name: ts.team_name,
+          total_points: total,
+          avg_rr,
+          pointsByDate,
+        };
+      });
+
+      return out
+        .sort((a, b) => {
+          if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+          return b.avg_rr - a.avg_rr;
+        })
+        .map((t, idx) => ({ ...t, rank: idx + 1 }));
+    })();
+
+    // =========================================================================
     // Calculate individual rankings
     // =========================================================================
     const individualStats = new Map<string, {
@@ -610,6 +766,10 @@ export async function GET(
       success: true,
       data: {
         teams: teamRankings,
+        pendingWindow: {
+          dates: pendingWindowDates,
+          teams: pendingWindowTeams,
+        } satisfies PendingWindow,
         subTeams: subTeamRankings,
         individuals: individualRankings,
         challengeTeams: challengeTeamRankings,

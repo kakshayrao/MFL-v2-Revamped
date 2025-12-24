@@ -56,6 +56,20 @@ export interface DateRange {
   endDate: string;
 }
 
+export interface PendingTeamWindowRanking {
+  rank: number;
+  team_id: string;
+  team_name: string;
+  total_points: number;
+  avg_rr: number;
+  pointsByDate: Record<string, number>;
+}
+
+export interface PendingWindow {
+  dates: string[];
+  teams: PendingTeamWindowRanking[];
+}
+
 export interface LeagueInfo {
   league_id: string;
   league_name: string;
@@ -65,6 +79,7 @@ export interface LeagueInfo {
 
 export interface LeaderboardData {
   teams: TeamRanking[];
+  pendingWindow?: PendingWindow;
   subTeams: SubTeamRanking[];
   individuals: IndividualRanking[];
   challengeTeams: TeamRanking[];

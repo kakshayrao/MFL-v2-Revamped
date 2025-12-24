@@ -45,6 +45,7 @@ import {
   LeagueTeamsTable,
   LeagueIndividualsTable,
   ChallengeSpecificLeaderboard,
+  RealTimeScoreboardTable,
 } from '@/components/leaderboard';
 
 // ============================================================================
@@ -222,6 +223,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
   const stats = data?.stats || { total_submissions: 0, approved: 0, pending: 0, rejected: 0, total_rr: 0 };
   const dateRange = data?.dateRange;
   const league = data?.league;
+  const pendingWindow = data?.pendingWindow;
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-4 lg:gap-6">
@@ -322,7 +324,12 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
       <div className="px-4 lg:px-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold">Overall Leaderboard</h2>
-          <p className="text-sm text-muted-foreground">Combined scores from workouts and challenges</p>
+          <p className="text-sm text-muted-foreground">
+            Combined scores from workouts and challenges
+            {dateRange?.endDate ? (
+              <> • As of {format(new Date(`${dateRange.endDate}T00:00:00`), 'MMM d')}</>
+            ) : null}
+          </p>
         </div>
         <Tabs value={view} onValueChange={(v) => setView(v as 'teams' | 'individuals')}>
           <TabsList>
@@ -343,6 +350,17 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Real-time (2-day delay window) */}
+      {pendingWindow?.dates?.length ? (
+        <div className="px-4 lg:px-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Real-time Scoreboard</h2>
+            <p className="text-sm text-muted-foreground">Today’s and yesterday’s scores (roll into the main leaderboard after the 2-day delay)</p>
+          </div>
+          <RealTimeScoreboardTable dates={pendingWindow.dates} teams={pendingWindow.teams || []} />
+        </div>
+      ) : null}
 
       {/* Challenge-Specific Leaderboard */}
       <div className="px-4 lg:px-6">
