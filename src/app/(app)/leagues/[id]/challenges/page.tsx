@@ -512,6 +512,41 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
     }
   };
 
+  function ReadMoreText({
+  text,
+  maxChars = 120,
+}: {
+  text: string
+  maxChars?: number
+}) {
+  const [expanded, setExpanded] = React.useState(false)
+
+  if (!text || text.length <= maxChars) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {text || 'No description provided'}
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm text-muted-foreground">
+        {expanded ? text : `${text.slice(0, maxChars)}...`}
+      </p>
+
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="text-xs font-medium text-primary hover:underline"
+      >
+        {expanded ? 'Read less' : 'Read more'}
+      </button>
+    </div>
+  )
+}
+
+
   const emptyState = (
     <div className="text-center py-12 border rounded-lg bg-muted/30">
       <FileText className="mx-auto mb-3 text-muted-foreground" />
@@ -589,10 +624,13 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
           {challenges.map((challenge) => (
             <Card
               key={challenge.id}
-              className="flex flex-col rounded-xl border border-white/10
-                          bg-gradient-to-b from-[#0c1b33] to-[#081425]
-                          hover:border-white/20 transition"
-            >
+              className="
+                  flex flex-col rounded-xl border
+                  bg-card text-foreground
+                  hover:border-primary/30 transition
+                  dark:bg-gradient-to-b dark:from-[#0c1b33] dark:to-[#081425]
+                "
+                >
               {/* HEADER */}
               <CardHeader className="pb-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -602,8 +640,11 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
                   {statusBadge(challenge.status)}
                 </div>
 
-                <CardDescription className="text-sm leading-relaxed line-clamp-2">
-                  {challenge.description || 'No description provided'}
+                <CardDescription>
+                  <ReadMoreText
+                    text={challenge.description || 'No description provided'}
+                    maxChars={120}
+                  />
                 </CardDescription>
               </CardHeader>
 
@@ -628,19 +669,19 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
 
                 {isAdmin && challenge.stats && (
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="rounded-md bg-white/5 px-2 py-1 text-center">
+                    <div className="rounded-md bg-muted px-2 py-1 text-center dark:bg-white/5">
                       Pending<br />
                       <span className="font-semibold">{challenge.stats.pending}</span>
                     </div>
-                    <div className="rounded-md bg-white/5 px-2 py-1 text-center">
+                    <div className="rounded-md bg-muted px-2 py-1 text-center dark:bg-white/5">
                       Approved<br />
-                      <span className="font-semibold text-green-400">
+                      <span className="font-semibold text-green-600 dark:text-green-400">
                         {challenge.stats.approved}
                       </span>
                     </div>
-                    <div className="rounded-md bg-white/5 px-2 py-1 text-center">
+                    <div className="rounded-md bg-muted px-2 py-1 text-center dark:bg-white/5">
                       Rejected<br />
-                      <span className="font-semibold text-red-400">
+                      <span className="font-semibold text-red-600 dark:text-red-400">
                         {challenge.stats.rejected}
                       </span>
                     </div>
@@ -688,17 +729,16 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
                       >
                         Delete
                       </Button>
-
                     )}
                   </div>
                 )}
               </div>
             </Card>
+
           ))}
         </div>
-
       </div>
-
+      
       {/* Create Challenge Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">

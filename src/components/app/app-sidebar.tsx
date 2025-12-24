@@ -79,7 +79,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       {/* Header - Logo + League Switcher */}
       <SidebarHeader>
         <div className="flex items-center gap-3 md:justify-start py-2">
-          <Link href="/" className="flex items-center gap-3 font-semibold">
+          <Link href="#" className="flex items-center gap-3 font-semibold">
             <div className="bg-primary text-primary-foreground flex size-10 items-center justify-center rounded-md shadow-sm">
               <Dumbbell className="size-6" />
             </div>
