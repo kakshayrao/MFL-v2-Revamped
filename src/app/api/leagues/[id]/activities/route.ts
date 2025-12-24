@@ -106,7 +106,7 @@ export async function GET(
       .eq('league_id', leagueId);
 
     const roleNames = (roleData || []).map((r: any) => r.roles?.role_name).filter(Boolean);
-    const isGovernor = roleNames.includes('Governor');
+    const isGovernor = roleNames.includes('governor');
 
     if (!membership && !isHost && !isGovernor) {
       return NextResponse.json(
