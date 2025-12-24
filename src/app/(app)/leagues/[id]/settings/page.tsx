@@ -1,6 +1,6 @@
 'use client';
 
-import React, { use, useState } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings,
@@ -14,6 +14,7 @@ import {
   Trophy,
   Info,
   Shield,
+  Calendar,
 } from 'lucide-react';
 
 import { useRole } from '@/contexts/role-context';
@@ -65,19 +66,65 @@ export default function LeagueSettingsPage({
   const { isHost } = useRole();
   const { activeLeague, refetch } = useLeague();
 
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Form state (mock data for demo)
+  // Form state
   const [formData, setFormData] = useState({
-    league_name: activeLeague?.name || 'My League',
+    league_name: activeLeague?.name || '',
     description: activeLeague?.description || '',
     is_public: false,
     is_exclusive: true,
     num_teams: '4',
     team_size: '5',
     rest_days: '1',
+    auto_rest_day_enabled: false,
+    start_date: '',
+    end_date: '',
+    status: 'draft' as 'draft' | 'launched' | 'active' | 'completed',
   });
+
+  const canEditStructure = formData.status === 'draft';
+
+  useEffect(() => {
+    const loadLeague = async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+
+        const res = await fetch(`/api/leagues/${id}`);
+        if (!res.ok) {
+          throw new Error('Failed to load league');
+        }
+
+        const json = await res.json();
+        const league = json.data;
+
+        setFormData({
+          league_name: league.league_name || '',
+          description: league.description || '',
+          is_public: !!league.is_public,
+          is_exclusive: !!league.is_exclusive,
+          num_teams: String(league.num_teams || '4'),
+          team_size: String(league.team_size || '5'),
+          rest_days: String(league.rest_days ?? '1'),
+          auto_rest_day_enabled: !!league.auto_rest_day_enabled,
+          start_date: league.start_date,
+          end_date: league.end_date,
+          status: league.status,
+        });
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load league');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadLeague();
+  }, [id]);
 
   // Access check
   if (!isHost) {
@@ -103,24 +150,123 @@ export default function LeagueSettingsPage({
     );
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6 py-4 md:py-6">
+        <div className="px-4 lg:px-6">
+          <Card className="max-w-lg mx-auto">
+            <CardContent className="pt-6 text-center space-y-3">
+              <Loader2 className="size-10 animate-spin text-primary mx-auto" />
+              <p className="text-muted-foreground">Loading league settings...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col gap-6 py-4 md:py-6">
+        <div className="px-4 lg:px-6">
+          <Card className="max-w-lg mx-auto">
+            <CardContent className="pt-6 text-center space-y-4">
+              <AlertTriangle className="size-10 text-destructive mx-auto" />
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold">Unable to load league</h2>
+                <p className="text-muted-foreground">{loadError}</p>
+              </div>
+              <Button variant="outline" onClick={() => router.refresh()}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   const handleSave = async () => {
     setSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setSaving(false);
-    // TODO: Show success toast
+    setSaveError(null);
+
+    try {
+      const payload: Record<string, string | number | boolean> = {
+        rest_days: Number(formData.rest_days),
+        auto_rest_day_enabled: formData.auto_rest_day_enabled,
+        description: formData.description,
+      };
+
+      if (canEditStructure) {
+        Object.assign(payload, {
+          league_name: formData.league_name,
+          is_public: formData.is_public,
+          is_exclusive: formData.is_exclusive,
+          num_teams: Number(formData.num_teams),
+          team_size: Number(formData.team_size),
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+        });
+      }
+
+      const res = await fetch(`/api/leagues/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to save changes');
+      }
+
+      const json = await res.json();
+      if (json?.data) {
+        const league = json.data;
+        setFormData((prev) => ({
+          ...prev,
+          league_name: league.league_name || prev.league_name,
+          description: league.description || '',
+          is_public: !!league.is_public,
+          is_exclusive: !!league.is_exclusive,
+          num_teams: String(league.num_teams || prev.num_teams),
+          team_size: String(league.team_size || prev.team_size),
+          rest_days: String(league.rest_days ?? prev.rest_days),
+          auto_rest_day_enabled: !!league.auto_rest_day_enabled,
+          start_date: league.start_date,
+          end_date: league.end_date,
+          status: league.status,
+        }));
+      }
+
+      await refetch();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
     setDeleting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    await refetch();
-    router.push('/dashboard');
+    try {
+      const res = await fetch(`/api/leagues/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to delete league');
+      }
+
+      await refetch();
+      router.push('/dashboard');
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to delete league');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const totalMembers =
-    parseInt(formData.num_teams) * parseInt(formData.team_size);
+    Number(formData.num_teams || 0) * Number(formData.team_size || 0);
 
   return (
     <div className="flex flex-col gap-6 py-4 md:py-6">
@@ -136,9 +282,18 @@ export default function LeagueSettingsPage({
               Configure your league settings and preferences
             </p>
           </div>
-          <Badge variant="outline" className="w-fit">
-            League ID: {id.slice(0, 8)}...
-          </Badge>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Badge variant="outline" className="w-fit">
+              League ID: {id.slice(0, 8)}...
+            </Badge>
+            <Badge variant={formData.status === 'active' ? 'default' : 'secondary'} className="capitalize">
+              {formData.status}
+            </Badge>
+            <Badge variant="outline" className="flex items-center gap-1 text-xs">
+              <Calendar className="size-3" />
+              {formData.start_date || '—'} → {formData.end_date || '—'}
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -171,6 +326,7 @@ export default function LeagueSettingsPage({
                       }))
                     }
                     placeholder="Enter league name"
+                    disabled={!canEditStructure}
                   />
                 </div>
                 <div className="space-y-2">
@@ -187,6 +343,30 @@ export default function LeagueSettingsPage({
                     rows={4}
                     placeholder="Describe your league goals and rules..."
                   />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, start_date: e.target.value }))
+                      }
+                      disabled={!canEditStructure}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, end_date: e.target.value }))
+                      }
+                      disabled={!canEditStructure}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -212,6 +392,7 @@ export default function LeagueSettingsPage({
                       onValueChange={(v) =>
                         setFormData((prev) => ({ ...prev, num_teams: v }))
                       }
+                      disabled={!canEditStructure}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -232,6 +413,7 @@ export default function LeagueSettingsPage({
                       onValueChange={(v) =>
                         setFormData((prev) => ({ ...prev, team_size: v }))
                       }
+                      disabled={!canEditStructure}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -268,13 +450,47 @@ export default function LeagueSettingsPage({
                 </div>
 
                 <div className="mt-4 p-3 rounded-lg bg-muted">
-                  <p className="text-sm text-muted-foreground">
-                    Total capacity:{' '}
-                    <span className="font-semibold text-foreground">
-                      {totalMembers} members
-                    </span>{' '}
-                    across {formData.num_teams} teams
-                  </p>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm text-muted-foreground">
+                      Total capacity:{' '}
+                      <span className="font-semibold text-foreground">
+                        {totalMembers} members
+                      </span>{' '}
+                      across {formData.num_teams} teams
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Rest day changes apply immediately, even for active leagues.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Rest Day Automation */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Shield className="size-5 text-primary" />
+                  Rest Day Automation
+                </CardTitle>
+                <CardDescription>
+                  Auto-assign a rest day if a member misses the daily deadline
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between p-4 rounded-lg border">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2">Auto Rest Day</Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, the cron job assigns a rest day for members with remaining rest days and no submission for the previous day.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.auto_rest_day_enabled}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, auto_rest_day_enabled: checked }))
+                    }
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -303,6 +519,7 @@ export default function LeagueSettingsPage({
                     onCheckedChange={(checked) =>
                       setFormData((prev) => ({ ...prev, is_public: checked }))
                     }
+                    disabled={!canEditStructure}
                   />
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-lg border">
@@ -320,6 +537,7 @@ export default function LeagueSettingsPage({
                     onCheckedChange={(checked) =>
                       setFormData((prev) => ({ ...prev, is_exclusive: checked }))
                     }
+                    disabled={!canEditStructure}
                   />
                 </div>
               </CardContent>
@@ -391,12 +609,30 @@ export default function LeagueSettingsPage({
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className="font-medium capitalize">{formData.status}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Schedule</span>
+                    <span className="font-medium text-right">
+                      {formData.start_date || '—'} → {formData.end_date || '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Teams</span>
                     <span className="font-medium">{formData.num_teams}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Team Size</span>
                     <span className="font-medium">{formData.team_size}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Rest Days/Week</span>
+                    <span className="font-medium">{formData.rest_days}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Auto Rest Day</span>
+                    <span className="font-medium">{formData.auto_rest_day_enabled ? 'On' : 'Off'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Capacity</span>
@@ -435,6 +671,9 @@ export default function LeagueSettingsPage({
                       </>
                     )}
                   </Button>
+                  {saveError && (
+                    <p className="text-sm text-destructive mt-2">{saveError}</p>
+                  )}
                 </div>
 
                 {/* Info */}

@@ -14,6 +14,7 @@ export interface LeagueInput {
   num_teams?: number;
   team_size?: number;
   rest_days?: number;
+  auto_rest_day_enabled?: boolean;
   is_public?: boolean;
   is_exclusive?: boolean;
 }
@@ -61,6 +62,7 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
         num_teams: data.num_teams || 4,
         team_size: data.team_size || 5,
         rest_days: data.rest_days || 1,
+        auto_rest_day_enabled: data.auto_rest_day_enabled ?? false,
         is_public: data.is_public || false,
         is_exclusive: data.is_exclusive ?? true,
         invite_code: generateInviteCode(),
@@ -199,16 +201,30 @@ export async function updateLeague(
       return null;
     }
 
-    // Prevent updates after league launch
-    if (league.status !== 'draft') {
-      console.error('Cannot update league after launch');
+    const isDraft = league.status === 'draft';
+
+    // Only allow a restricted set of fields once the league is launched/active
+    const allowedUpdates: Partial<LeagueInput> = {};
+
+    if (isDraft) {
+      Object.assign(allowedUpdates, data);
+    } else if (league.status === 'launched' || league.status === 'active') {
+      if (data.rest_days !== undefined) allowedUpdates.rest_days = data.rest_days;
+      if (data.auto_rest_day_enabled !== undefined) {
+        allowedUpdates.auto_rest_day_enabled = data.auto_rest_day_enabled;
+      }
+      if (data.description !== undefined) allowedUpdates.description = data.description;
+    }
+
+    if (Object.keys(allowedUpdates).length === 0) {
+      console.error('No updatable fields for current league status');
       return null;
     }
 
     const { data: updated, error } = await getSupabaseServiceRole()
       .from('leagues')
       .update({
-        ...data,
+        ...allowedUpdates,
         modified_by: userId,
         modified_date: new Date().toISOString(),
       })
@@ -317,11 +333,19 @@ export async function getUserRoleInLeague(
       .from('assignedrolesforleague')
       .select('roles(role_name)')
       .eq('user_id', userId)
-      .eq('league_id', leagueId)
-      .maybeSingle();
+      .eq('league_id', leagueId);
 
-    if (error || !data) return null;
-    return (data as any).roles?.role_name ?? null;
+    if (error || !data || data.length === 0) return null;
+
+    const roleNames = (data as any[])
+      .map((row) => row.roles?.role_name)
+      .filter(Boolean) as string[];
+
+    if (roleNames.includes('host')) return 'host';
+    if (roleNames.includes('governor')) return 'governor';
+    if (roleNames.includes('captain')) return 'captain';
+    if (roleNames.includes('player')) return 'player';
+    return roleNames[0] || null;
   } catch (err) {
     console.error('Error fetching user role:', err);
     return null;

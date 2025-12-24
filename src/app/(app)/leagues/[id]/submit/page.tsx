@@ -825,12 +825,12 @@ export default function SubmitActivityPage({
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
                       {formData.activity_type === 'steps' ? 'Steps' :
-                       formData.activity_type === 'golf' ? 'Holes' : 'Duration'}
+                      formData.activity_type === 'golf' ? 'Holes' : 'Duration'}
                     </span>
                     <span className="font-medium">
                       {formData.activity_type === 'steps' && formData.steps ? `${formData.steps} steps` :
-                       formData.activity_type === 'golf' && formData.holes ? `${formData.holes} holes` :
-                       formData.duration ? `${formData.duration} min` : '—'}
+                      formData.activity_type === 'golf' && formData.holes ? `${formData.holes} holes` :
+                      formData.duration ? `${formData.duration} min` : '—'}
                     </span>
                   </div>
                   <div className="flex justify-between">

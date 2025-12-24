@@ -23,6 +23,7 @@ const updateLeagueSchema = z.object({
   num_teams: z.number().int().positive().optional(),
   team_size: z.number().int().positive().optional(),
   rest_days: z.number().int().min(0).optional(),
+  auto_rest_day_enabled: z.boolean().optional(),
 });
 
 export async function GET(
@@ -68,7 +69,7 @@ export async function PATCH(
     const updated = await updateLeague(id, session.user.id, validated);
     if (!updated) {
       return NextResponse.json(
-        { error: 'Failed to update league (must be host and league must be in draft status)' },
+        { error: 'Failed to update league (host only; limited fields once launched)' },
         { status: 403 }
       );
     }

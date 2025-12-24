@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       num_teams,
       team_size,
       rest_days,
+      auto_rest_day_enabled,
       is_public,
       is_exclusive,
     } = body;
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       num_teams: num_teams || 4,
       team_size: team_size || 5,
       rest_days: rest_days || 1,
+      auto_rest_day_enabled: auto_rest_day_enabled ?? false,
       is_public: is_public || false,
       is_exclusive: is_exclusive ?? true,
     };

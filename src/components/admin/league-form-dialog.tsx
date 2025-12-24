@@ -37,6 +37,7 @@ interface LeagueFormData {
   num_teams: number;
   team_size: number;
   rest_days: number;
+  auto_rest_day_enabled: boolean;
   is_public: boolean;
   is_exclusive: boolean;
   status: LeagueStatus;
@@ -83,6 +84,7 @@ export function LeagueFormDialog({
     num_teams: 4,
     team_size: 5,
     rest_days: 1,
+    auto_rest_day_enabled: false,
     is_public: false,
     is_exclusive: true,
     status: "draft",
@@ -100,6 +102,7 @@ export function LeagueFormDialog({
         num_teams: league.num_teams,
         team_size: league.team_size,
         rest_days: league.rest_days,
+        auto_rest_day_enabled: league.auto_rest_day_enabled,
         is_public: league.is_public,
         is_exclusive: league.is_exclusive,
         status: league.status,
@@ -114,6 +117,7 @@ export function LeagueFormDialog({
         num_teams: 4,
         team_size: 5,
         rest_days: 1,
+        auto_rest_day_enabled: false,
         is_public: false,
         is_exclusive: true,
         status: "draft",
@@ -288,6 +292,20 @@ export function LeagueFormDialog({
                 id="is_exclusive"
                 checked={formData.is_exclusive}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_exclusive: checked })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto_rest_day_enabled">Auto Rest Day Assignment</Label>
+                <p className="text-sm text-muted-foreground">
+                  Automatically mark missing submissions as rest days (via cron)
+                </p>
+              </div>
+              <Switch
+                id="auto_rest_day_enabled"
+                checked={formData.auto_rest_day_enabled}
+                onCheckedChange={(checked) => setFormData({ ...formData, auto_rest_day_enabled: checked })}
               />
             </div>
 

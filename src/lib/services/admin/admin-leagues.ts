@@ -140,6 +140,7 @@ export async function createLeague(
         num_teams: input.num_teams || 4,
         team_size: input.team_size || 5,
         rest_days: input.rest_days || 1,
+        auto_rest_day_enabled: input.auto_rest_day_enabled ?? false,
         is_public: input.is_public || false,
         is_exclusive: input.is_exclusive ?? true,
         invite_code: generateInviteCode(),

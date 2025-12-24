@@ -40,7 +40,7 @@ export async function DELETE(
     }
 
     const roles = (roleData || []).map((r: any) => r.roles?.role_name);
-    const isHost = roles.includes('Host');
+    const isHost = roles.includes('host');
 
     if (!isHost) {
       return NextResponse.json(

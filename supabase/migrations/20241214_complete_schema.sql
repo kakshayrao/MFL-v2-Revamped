@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS public.leagues (
   num_teams integer DEFAULT 4 CHECK (num_teams > 0),
   team_size integer DEFAULT 5 CHECK (team_size > 0),
   rest_days integer DEFAULT 1 CHECK (rest_days >= 0 AND rest_days <= 7),
+  auto_rest_day_enabled boolean DEFAULT false,
   is_public boolean DEFAULT false,
   is_exclusive boolean DEFAULT true,
   invite_code varchar UNIQUE,
@@ -132,6 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_leagues_public ON public.leagues(is_public) WHERE
 COMMENT ON TABLE public.leagues IS 'League instances with start/end dates and status';
 COMMENT ON COLUMN public.leagues.is_active IS 'Soft delete flag - false indicates deactivated league';
 COMMENT ON COLUMN public.leagues.status IS 'League lifecycle: draft → launched → active → completed';
+COMMENT ON COLUMN public.leagues.auto_rest_day_enabled IS 'When true, missing submissions are auto-marked as rest days via cron';
 
 -- =====================================================================================
 
