@@ -816,7 +816,7 @@ export default function LeagueDashboardPage({
                 title="Manage Governors"
                 description="Assign or revoke governor access"
                 icon={Crown}
-                href={`/leagues/${id}/governors`}
+                href={`/leagues/${id}/team`}
                 color="bg-gradient-to-br from-orange-500 to-red-600"
               />
             </>
