@@ -7,7 +7,7 @@
  * - Check if they have submission for that day → skip if yes
  * - If no submission and rest days available, auto-assign as rest day (approved)
  * 
- * By running at 23:59 UTC daily, this catches missing submissions across all global timezones
+ * By running at 11:00 UTC daily, this catches missing submissions across all global timezones
  * consistently and fairly.
  * 
  * Security: Validates CRON_SECRET header from Vercel
@@ -20,6 +20,15 @@ import { getSupabaseServiceRole } from '@/lib/supabase/client';
 // ============================================================================
 
 const AUTO_REST_DAYS_BATCH_SIZE = 100; // Process in batches for performance
+const LOG_PREFIX = '[CRON][auto-rest-day]';
+
+function logCron(message: string, extra?: Record<string, unknown>) {
+  if (extra && Object.keys(extra).length > 0) {
+    console.log(LOG_PREFIX, message, extra);
+  } else {
+    console.log(LOG_PREFIX, message);
+  }
+}
 
 // ============================================================================
 // Helper: Calculate yesterday in a given timezone offset
@@ -130,6 +139,9 @@ async function hasEntryForDate(leagueMemberId: string, dateStr: string): Promise
 
 export async function POST(req: NextRequest) {
   try {
+    const startTs = new Date().toISOString();
+    logCron('START', { at: startTs });
+
     // Verify cron secret
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
@@ -162,7 +174,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!enabledLeagues || enabledLeagues.length === 0) {
-      console.log('No leagues with auto rest day enabled');
+      logCron('NO_LEAGUES_ENABLED', { at: new Date().toISOString() });
       return NextResponse.json({
         success: true,
         message: 'No leagues with auto rest day enabled',
@@ -172,7 +184,7 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Process each league
     for (const league of enabledLeagues) {
-      console.log(`Processing league ${league.league_id} with rest_days=${league.rest_days}`);
+      logCron('LEAGUE_START', { league: league.league_id, rest_days: league.rest_days });
 
       // For now, use UTC. Once timezone column is added to leagues, use that instead.
       const leagueTimezoneOffset = 0; // UTC offset in hours
@@ -189,7 +201,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      if (!members || members.length === 0) continue;
+      if (!members || members.length === 0) {
+        logCron('LEAGUE_NO_MEMBERS', { league: league.league_id });
+        continue;
+      }
+      logCron('LEAGUE_MEMBERS', { league: league.league_id, members: members.length });
 
       // Step 3: Check each member
       for (const member of members) {
@@ -234,9 +250,11 @@ export async function POST(req: NextRequest) {
 
           if (!insertError) {
             totalAssigned++;
-            console.log(
-              `Auto-assigned rest day for ${yesterdayStr} to member ${member.league_member_id} in league ${league.league_id}`
-            );
+            logCron('ASSIGNED', {
+              league: league.league_id,
+              member: member.league_member_id,
+              date: yesterdayStr,
+            });
           } else {
             console.error(
               `Failed to auto-assign rest day for ${member.league_member_id}:`,
@@ -253,9 +271,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(
-      `Auto-rest-day cron completed: ${totalAssigned} assigned out of ${totalProcessed} members processed`
-    );
+    logCron('END', {
+      processed: totalProcessed,
+      assigned: totalAssigned,
+      duration_ms: Date.now() - new Date(startTs).getTime(),
+    });
 
     return NextResponse.json({
       success: true,
