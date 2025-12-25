@@ -97,7 +97,6 @@ export default function LeagueDashboardPage({
   const [error, setError] = React.useState<string | null>(null);
   const [rejectedCount, setRejectedCount] = React.useState<number>(0);
   const [recentDays, setRecentDays] = React.useState<RecentDayRow[] | null>(null);
-  const autoRestLast7GuardRef = React.useRef<Set<string>>(new Set());
 
   const [mySummary, setMySummary] = React.useState<{
     points: number;
@@ -204,57 +203,6 @@ export default function LeagueDashboardPage({
               const a = String(existing.created_date || existing.modified_date || '');
               const b = String(s.created_date || s.modified_date || '');
               if (b > a) byDate.set(s.date, s);
-            }
-
-            // Auto-assign missed past days as Rest Days until weekly allowance is exhausted.
-            // Weeks run Sunday → Saturday.
-            const weeklyAllowance = Number(leagueForTracking?.rest_days ?? 0);
-            if (Number.isFinite(weeklyAllowance) && weeklyAllowance > 0) {
-              const missingPastDates: string[] = [];
-
-              // Collect missing dates across the last 7 days, but only for dates before today.
-              for (let offset = 0; offset <= 6; offset += 1) {
-                const d = new Date(startLocal);
-                d.setDate(startLocal.getDate() + offset);
-                const ymd = localYmd(d);
-                if (ymd >= todayStr) continue;
-                if (!byDate.has(ymd)) missingPastDates.push(ymd);
-              }
-
-              const guardKey = `${id}:${startDate}:${endDate}`;
-              if (missingPastDates.length > 0 && !autoRestLast7GuardRef.current.has(guardKey)) {
-                autoRestLast7GuardRef.current.add(guardKey);
-
-                // Best-effort: let server enforce weekly caps.
-                await fetch(`/api/leagues/${id}/auto-rest-days`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ dates: missingPastDates, tzOffsetMinutes }),
-                }).catch(() => null);
-
-                // Re-fetch for accurate UI.
-                const rerecent = await fetch(recentUrl).catch(() => null);
-                if (rerecent && 'ok' in rerecent && rerecent.ok) {
-                  const rerecentData = await rerecent.json();
-                  submissions =
-                    rerecentData?.success && rerecentData?.data?.submissions
-                      ? (rerecentData.data.submissions as any[])
-                      : submissions;
-
-                  byDate.clear();
-                  for (const s of submissions) {
-                    if (!s?.date) continue;
-                    const existing = byDate.get(s.date);
-                    if (!existing) {
-                      byDate.set(s.date, s);
-                      continue;
-                    }
-                    const a = String(existing.created_date || existing.modified_date || '');
-                    const b = String(s.created_date || s.modified_date || '');
-                    if (b > a) byDate.set(s.date, s);
-                  }
-                }
-              }
             }
 
             const rows: RecentDayRow[] = [];
