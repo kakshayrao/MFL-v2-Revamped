@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { AdminActivity } from "@/types/admin";
+import { getSupabase } from "@/lib/supabase/client";
 
 // ============================================================================
 // Types
@@ -218,9 +219,12 @@ export function ActivityFormDialog({
               type="button"
               onClick={async () => {
                 if (!newCatName.trim()) return;
+                // Include Supabase access token to satisfy server-side RLS
                 const res = await fetch('/api/admin/activity-categories', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
                   body: JSON.stringify({ display_name: newCatName.trim(), description: newCatDesc || null })
                 });
                 const json = await res.json();

@@ -3,13 +3,13 @@
  * Handles all user CRUD operations for the admin panel
  */
 
-import { getSupabaseServiceRole } from '@/lib/supabase/client';
 import type {
   AdminUser,
   AdminUserCreateInput,
   AdminUserUpdateInput,
   AdminUserFilters,
 } from '@/types/admin';
+import { getSupabaseServiceRole } from '@/lib/supabase/client';
 
 /**
  * Get all users with optional filters
@@ -77,13 +77,39 @@ export async function getUserById(userId: string): Promise<AdminUser | null> {
 
 /**
  * Create a new user
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function createUser(
   input: AdminUserCreateInput,
+  accessToken?: string,
   createdBy?: string
 ): Promise<AdminUser | null> {
   try {
     const supabase = getSupabaseServiceRole();
+    
+    // Verify admin access if token provided
+    if (accessToken) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+      if (authError || !user) {
+        console.error('Unauthorized: Invalid authentication');
+        return null;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('platform_role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userError || userData?.platform_role !== 'admin') {
+        console.error('Forbidden: Admin access required');
+        return null;
+      }
+      
+      if (!createdBy) {
+        createdBy = user.id;
+      }
+    }
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -109,14 +135,40 @@ export async function createUser(
 
 /**
  * Update an existing user
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function updateUser(
   userId: string,
   input: AdminUserUpdateInput,
+  accessToken?: string,
   modifiedBy?: string
 ): Promise<AdminUser | null> {
   try {
     const supabase = getSupabaseServiceRole();
+    
+    // Verify admin access if token provided
+    if (accessToken) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+      if (authError || !user) {
+        console.error('Unauthorized: Invalid authentication');
+        return null;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('platform_role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userError || userData?.platform_role !== 'admin') {
+        console.error('Forbidden: Admin access required');
+        return null;
+      }
+      
+      if (!modifiedBy) {
+        modifiedBy = user.id;
+      }
+    }
     const { data, error } = await supabase
       .from('users')
       .update({
@@ -142,13 +194,39 @@ export async function updateUser(
 
 /**
  * Soft delete a user (set is_active = false)
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function softDeleteUser(
   userId: string,
+  accessToken?: string,
   modifiedBy?: string
 ): Promise<boolean> {
   try {
     const supabase = getSupabaseServiceRole();
+    
+    // Verify admin access if token provided
+    if (accessToken) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+      if (authError || !user) {
+        console.error('Unauthorized: Invalid authentication');
+        return false;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('platform_role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userError || userData?.platform_role !== 'admin') {
+        console.error('Forbidden: Admin access required');
+        return false;
+      }
+      
+      if (!modifiedBy) {
+        modifiedBy = user.id;
+      }
+    }
     const { error } = await supabase
       .from('users')
       .update({

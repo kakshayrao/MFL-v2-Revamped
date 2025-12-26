@@ -20,6 +20,7 @@ import {
   Calendar,
   RefreshCw,
   ShieldAlert,
+  Upload,
 } from 'lucide-react';
 import {
   flexRender,
@@ -58,6 +59,7 @@ import { cn } from '@/lib/utils';
 import { SubmissionDetailDialog } from './submission-detail-dialog';
 import type { MySubmission, SubmissionStats } from '@/hooks/use-my-submissions';
 import { isExemptionRequest } from '@/hooks/use-my-submissions';
+import { useRouter } from 'next/navigation';
 
 // ============================================================================
 // Loading Skeleton
@@ -200,6 +202,7 @@ export function MySubmissionsTable({
   error,
   onRefresh,
 }: MySubmissionsTableProps) {
+  const router = useRouter();
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'date', desc: true },
   ]);
@@ -211,11 +214,51 @@ export function MySubmissionsTable({
   const [detailDialogOpen, setDetailDialogOpen] = React.useState(false);
   const [selectedSubmission, setSelectedSubmission] = React.useState<MySubmission | null>(null);
 
+  // Get league ID from URL
+  const leagueId = typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : '';
+
+  // Handle resubmit - redirect to submit page with query params
+  const handleResubmit = (submission: MySubmission) => {
+    const params = new URLSearchParams({
+      resubmit: submission.id,
+      date: submission.date,
+      type: submission.type,
+    });
+
+    if (submission.workout_type) params.set('workout_type', submission.workout_type);
+    if (submission.duration) params.set('duration', submission.duration.toString());
+    if (submission.distance) params.set('distance', submission.distance.toString());
+    if (submission.steps) params.set('steps', submission.steps.toString());
+    if (submission.holes) params.set('holes', submission.holes.toString());
+    if (submission.notes) params.set('notes', submission.notes);
+    if (submission.proof_url) params.set('proof_url', submission.proof_url);
+
+    router.push(`/leagues/${leagueId}/submit?${params.toString()}`);
+  };
+
   // Filter submissions by status
   const filteredSubmissions = React.useMemo(() => {
     if (statusFilter === 'all') return submissions;
     return submissions.filter((s) => s.status === statusFilter);
   }, [submissions, statusFilter]);
+
+  // Determine which submissions can be resubmitted
+  // Core Rule: Re-submit button appears ONLY on original submissions (reupload_of = null) when rejected
+  const resubmittableIds = React.useMemo(() => {
+    const canResubmit = new Set<string>();
+
+    submissions.forEach((sub) => {
+      // Only original submissions can have re-submit button
+      if (sub.reupload_of === null && sub.status === 'rejected') {
+        canResubmit.add(sub.id);
+      }
+    });
+
+    return canResubmit;
+  }, [submissions]);
+
+  // Note: Only reupload entries (reupload_of != null) should display the
+  // "Re-submitted" indicator. Originals should remain unmarked.
 
   // Format workout type for display
   const formatWorkoutType = (type: string | null) => {
@@ -301,23 +344,58 @@ export function MySubmissionsTable({
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <StatusBadge status={row.original.status} />
+            {/* Show (Re-submitted) label only on reupload entries */}
+            {Boolean(row.original.reupload_of) && (
+              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+                <RefreshCw className="size-2.5 mr-1" />
+                Re-submitted
+              </Badge>
+            )}
+            {/* Version badge removed per UX: no vX display */}
+          </div>
+          {/* Show rejection reason below status */}
+          {row.original.status === 'rejected' && row.original.rejection_reason && (
+            <p className="text-xs text-red-600 dark:text-red-400 line-clamp-1" title={row.original.rejection_reason}>
+              {row.original.rejection_reason}
+            </p>
+          )}
+        </div>
+      ),
     },
     {
       id: 'actions',
+      header: 'Actions',
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={() => {
-            setSelectedSubmission(row.original);
-            setDetailDialogOpen(true);
-          }}
-        >
-          <Eye className="size-4" />
-          <span className="sr-only">View details</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => {
+              setSelectedSubmission(row.original);
+              setDetailDialogOpen(true);
+            }}
+          >
+            <Eye className="size-4" />
+            <span className="sr-only">View details</span>
+          </Button>
+          {/* Re-submit button: ONLY on original submissions when rejected */}
+          {resubmittableIds.has(row.original.id) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+              onClick={() => handleResubmit(row.original)}
+            >
+              <Upload className="size-3.5 mr-1" />
+              Re-submit
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -540,6 +618,12 @@ export function MySubmissionsTable({
         open={detailDialogOpen}
         onOpenChange={setDetailDialogOpen}
         submission={selectedSubmission}
+        isOwner={true}
+        onReupload={() => {
+          if (selectedSubmission) {
+            handleResubmit(selectedSubmission);
+          }
+        }}
       />
     </div>
   );

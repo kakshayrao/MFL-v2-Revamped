@@ -111,6 +111,7 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_otps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pricing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.league_tiers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leagues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
@@ -232,6 +233,64 @@ CREATE POLICY pricing_delete_admin ON public.pricing
   );
 
 -- =====================================================================================
+-- LEAGUE TIERS POLICIES
+-- =====================================================================================
+
+-- Everyone can read active tiers
+CREATE POLICY league_tiers_select_active ON public.league_tiers
+  FOR SELECT
+  USING (is_active = true);
+
+-- Admins can read all tiers (including inactive)
+CREATE POLICY league_tiers_select_admin ON public.league_tiers
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE users.user_id = auth.uid()
+      AND users.platform_role = 'admin'
+    )
+  );
+
+-- Only admins can insert/update/delete tiers
+CREATE POLICY league_tiers_insert_admin ON public.league_tiers
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE users.user_id = auth.uid()
+      AND users.platform_role = 'admin'
+    )
+  );
+
+CREATE POLICY league_tiers_update_admin ON public.league_tiers
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE users.user_id = auth.uid()
+      AND users.platform_role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE users.user_id = auth.uid()
+      AND users.platform_role = 'admin'
+    )
+  );
+
+CREATE POLICY league_tiers_delete_admin ON public.league_tiers
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE users.user_id = auth.uid()
+      AND users.platform_role = 'admin'
+    )
+  );
+
+-- =====================================================================================
 -- ROLES POLICIES
 -- =====================================================================================
 
@@ -264,6 +323,9 @@ CREATE POLICY roles_update_admin ON public.roles
 -- =====================================================================================
 -- LEAGUES POLICIES
 -- =====================================================================================
+
+-- League status lifecycle: scheduled → active → ended → completed
+-- Additional terminal states: cancelled, abandoned
 
 -- Everyone can read public leagues
 CREATE POLICY leagues_select_public ON public.leagues

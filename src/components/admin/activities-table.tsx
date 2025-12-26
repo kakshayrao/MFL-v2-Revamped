@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { getSupabase } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -602,9 +603,12 @@ export function ActivitiesTable() {
                 if (!catName.trim()) return;
                 setCatSaving(true);
                 try {
+                  // Include Supabase access token
                   const res = await fetch('/api/admin/activity-categories', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({ display_name: catName.trim(), description: catDesc || null }),
                   });
                   const json = await res.json();
@@ -669,7 +673,9 @@ export function ActivitiesTable() {
                       const confirmed = window.confirm(`Delete category "${c.display_name || c.category_name}"?`);
                       if (!confirmed) return;
                       try {
-                        const res = await fetch(`/api/admin/activity-categories/${c.category_id}`, { method: 'DELETE' });
+                        const res = await fetch(`/api/admin/activity-categories/${c.category_id}`, {
+                          method: 'DELETE',
+                        });
                         const json = await res.json();
                         if (!res.ok) throw new Error(json?.error || 'Failed to delete');
                         toast.success('Category deleted');

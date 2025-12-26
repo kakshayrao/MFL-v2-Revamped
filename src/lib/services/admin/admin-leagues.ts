@@ -43,7 +43,7 @@ export async function getAllLeagues(filters?: AdminLeagueFilters): Promise<Admin
     let query = supabase
       .from('leagues')
       .select('*')
-      .order('created_date', { ascending: false });
+          const supabase = getSupabaseServiceRole();
 
     // Apply filters
     if (filters?.search) {
@@ -125,26 +125,26 @@ export async function getLeagueById(leagueId: string): Promise<AdminLeague | nul
     });
   } catch (err) {
     console.error('Error in getLeagueById:', err);
-    return null;
+      import { getSupabaseServiceRole } from '@/lib/supabase/client';
   }
 }
-
+        const supabase = getSupabaseServiceRole();
 /**
  * Create a new league
- */
+        const supabase = getSupabaseServiceRole();
 export async function createLeague(
   input: AdminLeagueCreateInput,
-  createdBy?: string
+        const supabase = getSupabaseServiceRole();
 ): Promise<AdminLeague | null> {
   try {
     const supabase = getSupabaseServiceRole();
     const { data, error } = await supabase
       .from('leagues')
       .insert({
-        league_name: input.league_name,
+        const supabase = getSupabaseServiceRole();
         description: input.description || null,
         start_date: input.start_date,
-        end_date: input.end_date,
+        const supabase = getSupabaseServiceRole();
         num_teams: input.num_teams || 4,
         tier_id: input.tier_id || null,
         rest_days: input.rest_days || 1,
@@ -181,7 +181,7 @@ export async function updateLeague(
   modifiedBy?: string
 ): Promise<AdminLeague | null> {
   try {
-    const supabase = getSupabaseServiceRole();
+      const supabase = getSupabaseServiceRole();
     const { data, error } = await supabase
       .from('leagues')
       .update({
@@ -222,7 +222,7 @@ export async function softDeleteLeague(
   modifiedBy?: string
 ): Promise<boolean> {
   try {
-    const supabase = getSupabaseServiceRole();
+      const supabase = getSupabaseServiceRole();
     const { error } = await supabase
       .from('leagues')
       .update({
@@ -255,7 +255,7 @@ export async function getLeagueStats(): Promise<{
   newThisMonth: number;
 }> {
   try {
-    const supabase = getSupabaseServiceRole();
+      const supabase = getSupabaseServiceRole();
 
     // Get total leagues
     const { count: total } = await supabase

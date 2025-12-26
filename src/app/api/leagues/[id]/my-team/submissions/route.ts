@@ -29,6 +29,7 @@ export interface TeamSubmission {
   created_date: string;
   modified_date: string;
   modified_by: string | null;
+  reupload_of: string | null;
   graded_by_role: 'host' | 'governor' | 'captain' | 'player' | 'system' | null;
   member: {
     user_id: string;
@@ -183,7 +184,8 @@ export async function GET(
         notes,
         created_date,
         modified_date,
-        modified_by
+        modified_by,
+        reupload_of
       `)
       .in('league_member_id', memberIds)
       .order('date', { ascending: false });

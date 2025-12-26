@@ -26,7 +26,6 @@ export interface RevenueChartData {
 export async function getDashboardStats(): Promise<DashboardStats> {
   try {
     const supabase = getSupabaseServiceRole();
-
     // Current month start
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

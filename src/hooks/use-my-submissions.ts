@@ -25,6 +25,8 @@ export interface MySubmission {
   notes: string | null;
   created_date: string;
   modified_date: string;
+  reupload_of: string | null;
+  rejection_reason: string | null;
 }
 
 /**

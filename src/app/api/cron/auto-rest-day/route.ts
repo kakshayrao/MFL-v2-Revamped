@@ -20,7 +20,7 @@ import { getSupabaseServiceRole } from '@/lib/supabase/client';
 // ============================================================================
 
 const AUTO_REST_DAYS_BATCH_SIZE = 100; // Process in batches for performance
-const LOG_PREFIX = '[CRON][auto-rest-day]';
+const LOG_PREFIX = '[CRON][auto-rest-day]';// Log prefix for cron job for logging (logging to be removed once tested in prod)
 
 function logCron(message: string, extra?: Record<string, unknown>) {
   if (extra && Object.keys(extra).length > 0) {

@@ -17,6 +17,7 @@ import { z } from 'zod';
 const validateSchema = z.object({
   status: z.enum(['approved', 'rejected']),
   rejection_reason: z.string().optional(),
+  awarded_points: z.number().optional(),
 });
 
 // ============================================================================
@@ -154,10 +155,10 @@ export async function POST(
       modified_date: new Date().toISOString(),
     };
 
-    // Store rejection reason if provided (you may need to add this column)
-    // if (rejection_reason) {
-    //   updateData.rejection_reason = rejection_reason;
-    // }
+    // Store rejection reason if provided
+    if (status === 'rejected' && rejection_reason) {
+      updateData.rejection_reason = rejection_reason;
+    }
 
     const { data: updatedSubmission, error: updateError } = await supabase
       .from('effortentry')

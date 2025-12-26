@@ -105,6 +105,58 @@ export interface AdminLeagueUpdateInput {
 }
 
 // ============================================================================
+// League Tier Types
+// ============================================================================
+
+export type TierPricingType = 'fixed' | 'dynamic';
+
+export interface AdminTier {
+  id: string;
+  name: string;
+  display_name: string;
+  description?: string | null;
+  pricing_type: TierPricingType;
+  fixed_price?: number | null;
+  base_fee?: number | null;
+  per_day_rate?: number | null;
+  per_participant_rate?: number | null;
+  gst_percentage?: number;
+  max_days: number;
+  max_participants: number;
+  pricing_id?: string;
+  display_order?: number;
+  is_featured?: boolean;
+  features?: string[];
+  is_active: boolean;
+  active_leagues?: number;
+  total_leagues?: number;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AdminTierCreateInput {
+  name: string;
+  display_name: string;
+  description?: string | null;
+  pricing_type: TierPricingType;
+  fixed_price?: number | null;
+  base_fee?: number | null;
+  per_day_rate?: number | null;
+  per_participant_rate?: number | null;
+  gst_percentage?: number;
+  max_days: number;
+  max_participants: number;
+  display_order?: number;
+  is_featured?: boolean;
+  features?: string[];
+}
+
+export interface AdminTierUpdateInput extends Partial<AdminTierCreateInput> {
+  is_active?: boolean;
+}
+
+// ============================================================================
 // Activity Types
 // ============================================================================
 

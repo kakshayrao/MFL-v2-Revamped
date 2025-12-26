@@ -15,6 +15,7 @@ const createLeagueSchema = z.object({
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
   tier_id: z.string().optional(),
   num_teams: z.number().int().positive().optional(),
+  max_participants: z.number().int().positive().optional(),
   rest_days: z.number().int().min(0).max(7).optional(),
   is_public: z.boolean().optional(),
   is_exclusive: z.boolean().optional(),

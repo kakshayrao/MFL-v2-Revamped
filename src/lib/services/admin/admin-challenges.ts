@@ -6,8 +6,6 @@
 import { getSupabaseServiceRole } from '@/lib/supabase/client';
 
 export interface PresetChallenge {
-  challenge_id: string;
-  name: string;
   description: string | null;
   challenge_type: 'individual' | 'team' | 'sub_team';
   doc_url: string | null;
