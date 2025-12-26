@@ -85,7 +85,7 @@ export default function LeagueSettingsPage({
     start_date: '',
     end_date: '',
     status: 'draft' as 'draft' | 'launched' | 'active' | 'completed',
-    normalize_points_by_capacity: false,
+    normalize_points_by_team_size: false,
   });
 
   const canEditStructure = formData.status === 'draft';
@@ -115,7 +115,7 @@ export default function LeagueSettingsPage({
           start_date: league.start_date,
           end_date: league.end_date,
           status: league.status,
-          normalize_points_by_capacity: !!league.normalize_points_by_capacity,
+          normalize_points_by_team_size: !!league.normalize_points_by_team_size,
         });
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : 'Failed to load league');
@@ -196,7 +196,7 @@ export default function LeagueSettingsPage({
         rest_days: Number(formData.rest_days),
         auto_rest_day_enabled: formData.auto_rest_day_enabled,
         description: formData.description,
-        normalize_points_by_capacity: formData.normalize_points_by_capacity,
+        normalize_points_by_team_size: formData.normalize_points_by_team_size,
       };
 
       if (canEditStructure) {
@@ -242,8 +242,8 @@ export default function LeagueSettingsPage({
       await refetch();
 
       // Show toast for normalization status
-      if (payload.normalize_points_by_capacity !== undefined) {
-        const status = payload.normalize_points_by_capacity ? 'enabled' : 'disabled';
+      if (payload.normalize_points_by_team_size !== undefined) {
+        const status = payload.normalize_points_by_team_size ? 'enabled' : 'disabled';
         toast.success(`Point normalization ${status}.`);
       } else {
         toast.success('League settings updated.');
@@ -478,6 +478,36 @@ export default function LeagueSettingsPage({
               </CardContent>
             </Card>
 
+            {/* Point Normalization */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Trophy className="size-5 text-primary" />
+                  Point Normalization
+                </CardTitle>
+                <CardDescription>
+                  Normalize team points based on team size for fair competition
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between p-4 rounded-lg border">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-2">Normalize Points by Team Size</Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, team points are normalized using the formula: (raw_points / team_size) × max_team_size
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">💾 Click "Save Changes" to apply</p>
+                  </div>
+                  <Switch
+                    checked={formData.normalize_points_by_team_size}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, normalize_points_by_team_size: checked }))
+                    }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Visibility Settings Card */}
             <Card>
               <CardHeader>
@@ -614,6 +644,10 @@ export default function LeagueSettingsPage({
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Auto Rest Day</span>
                     <span className="font-medium">{formData.auto_rest_day_enabled ? 'On' : 'Off'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Point Normalization</span>
+                    <span className="font-medium">{formData.normalize_points_by_team_size ? 'On' : 'Off'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Capacity</span>
