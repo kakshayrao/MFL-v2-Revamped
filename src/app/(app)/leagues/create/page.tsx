@@ -67,6 +67,10 @@ interface PricingData {
   basePrice: number;
   platformFee: number;
   gstPercentage: number;
+  perDayRate?: number | null;
+  perParticipantRate?: number | null;
+  perDayTotal: number;
+  perParticipantTotal: number;
   subtotal: number;
   gst: number;
   total: number;
@@ -125,6 +129,8 @@ export default function CreateLeaguePage() {
     league_name: '',
     description: '',
     num_teams: '4',
+    total_players: '10',
+    duration_days: '10',
     rest_days: '1',
     is_public: false,
     is_exclusive: true,
@@ -164,6 +170,40 @@ export default function CreateLeaguePage() {
     return Number.isFinite(n) && n > 0 ? n : 0;
   }, []);
 
+  const computePricingTotals = React.useCallback(
+    (tier: TierApiTier | null, duration: number, capacity: number): PricingData | null => {
+      if (!tier?.pricing) return null;
+
+      const p = tier.pricing;
+      const base = Number(p.base_price) || 0;
+      const platform = Number(p.platform_fee) || 0;
+      const gstPct = Number(p.gst_percentage) || 0;
+      const perDayRate = p.per_day_rate != null ? Number(p.per_day_rate) : null;
+      const perParticipantRate = p.per_participant_rate != null ? Number(p.per_participant_rate) : null;
+
+      const perDayTotal = perDayRate && duration > 0 ? perDayRate * duration : 0;
+      const perParticipantTotal = perParticipantRate && capacity > 0 ? perParticipantRate * capacity : 0;
+
+      const subtotal = base + platform + perDayTotal + perParticipantTotal;
+      const gst = subtotal * (gstPct / 100);
+      const total = subtotal + gst;
+
+      return {
+        basePrice: base,
+        platformFee: platform,
+        gstPercentage: gstPct,
+        perDayRate,
+        perParticipantRate,
+        perDayTotal,
+        perParticipantTotal,
+        subtotal,
+        gst,
+        total,
+      };
+    },
+    []
+  );
+
   const startOfTodayLocal = React.useCallback(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -192,6 +232,11 @@ export default function CreateLeaguePage() {
     [tiers, selectedTierId]
   );
 
+  const isCustomTier = React.useMemo(
+    () => String(selectedTier?.tier_name ?? '').toLowerCase() === 'custom',
+    [selectedTier?.tier_name]
+  );
+
   const tierOptions = React.useMemo(() => {
     const byName = new Map(tiers.map((t) => [String(t.tier_name).toLowerCase(), t] as const));
     const ordered = ['basic', 'medium', 'pro', 'custom'];
@@ -206,21 +251,24 @@ export default function CreateLeaguePage() {
   }, [tiers]);
 
   const getTierTotal = React.useCallback((tier: TierApiTier | null): number | null => {
-    if (!tier?.pricing) return null;
-    const base = Number(tier.pricing.base_price) || 0;
-    const fee = Number(tier.pricing.platform_fee) || 0;
-    const gstPct = Number(tier.pricing.gst_percentage) || 0;
-    const subtotal = base + fee;
-    const gst = subtotal * (gstPct / 100);
-    const total = subtotal + gst;
-    return Number.isFinite(total) ? total : null;
-  }, []);
+    const duration = getTierDaysPermitted(tier);
+    const capacity = Number(tier?.league_capacity) || 0;
+    const totals = computePricingTotals(tier, duration, capacity);
+    return totals ? totals.total : null;
+  }, [computePricingTotals, getTierDaysPermitted]);
 
-  const tierDays = React.useMemo(() => getTierDaysPermitted(selectedTier), [selectedTier, getTierDaysPermitted]);
+  const durationDays = React.useMemo(() => {
+    const tierDays = getTierDaysPermitted(selectedTier);
+    if (!isCustomTier) return tierDays;
+    const n = parseInt(formData.duration_days, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+    return tierDays;
+  }, [formData.duration_days, selectedTier, getTierDaysPermitted, isCustomTier]);
+
   const effectiveStartDate = React.useMemo(() => startDate ?? startOfTodayLocal(), [startDate, startOfTodayLocal]);
   const computedEndDate = React.useMemo(
-    () => computeEndDate(effectiveStartDate, tierDays),
-    [effectiveStartDate, tierDays, computeEndDate]
+    () => computeEndDate(effectiveStartDate, durationDays),
+    [effectiveStartDate, durationDays, computeEndDate]
   );
 
   // Fetch tiers + pricing on mount
@@ -243,6 +291,9 @@ export default function CreateLeaguePage() {
         };
         const durationByName: Record<string, number> = {
           basic: 10, // Basic is fixed 10 days
+          medium: 30,
+          pro: 90,
+          custom: 30,
         };
         const enrichedList = list.map((t) => {
           const key = String(t.tier_name).toLowerCase();
@@ -265,25 +316,9 @@ export default function CreateLeaguePage() {
         const initialTier = basic ?? list[0] ?? null;
         setSelectedTierId(initialTier?.tier_id ?? null);
 
-        const p = initialTier?.pricing;
-        if (p) {
-          const base_price = Number(p.base_price) || 0;
-          const platform_fee = Number(p.platform_fee) || 0;
-          const gst_percentage = Number(p.gst_percentage) || 0;
-          const subtotal = base_price + platform_fee;
-          const gst = subtotal * (gst_percentage / 100);
-          const total = subtotal + gst;
-          setPricing({
-            basePrice: base_price,
-            platformFee: platform_fee,
-            gstPercentage: gst_percentage,
-            subtotal,
-            gst,
-            total,
-          });
-        } else {
-          setPricing(null);
-        }
+        const initialDuration = getTierDaysPermitted(initialTier);
+        const initialCapacity = Number(initialTier?.league_capacity) || 0;
+        setPricing(computePricingTotals(initialTier, initialDuration, initialCapacity));
       } catch (err) {
         console.error('Failed to fetch tiers/pricing:', err);
       } finally {
@@ -292,31 +327,6 @@ export default function CreateLeaguePage() {
     };
     fetchTiersAndPricing();
   }, []);
-
-  // Update pricing when tier changes
-  React.useEffect(() => {
-    const p = selectedTier?.pricing;
-    if (!p) {
-      setPricing(null);
-      return;
-    }
-
-    const base_price = Number(p.base_price) || 0;
-    const platform_fee = Number(p.platform_fee) || 0;
-    const gst_percentage = Number(p.gst_percentage) || 0;
-    const subtotal = base_price + platform_fee;
-    const gst = subtotal * (gst_percentage / 100);
-    const total = subtotal + gst;
-
-    setPricing({
-      basePrice: base_price,
-      platformFee: platform_fee,
-      gstPercentage: gst_percentage,
-      subtotal,
-      gst,
-      total,
-    });
-  }, [selectedTier]);
 
   // Load Razorpay script
   React.useEffect(() => {
@@ -393,7 +403,12 @@ export default function CreateLeaguePage() {
       const orderRes = await fetch('/api/payments/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueId, tierId: selectedTierId }),
+        body: JSON.stringify({
+          leagueId,
+          tierId: selectedTierId,
+          durationDays,
+          totalPlayers: tierCapacity,
+        }),
       });
 
       const orderData = await orderRes.json();
@@ -452,7 +467,12 @@ export default function CreateLeaguePage() {
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create league');
+      const message = err instanceof Error ? err.message : 'Failed to create league';
+      if (message.includes('duplicate key value') || message.includes('already exists')) {
+        setError('League name already exists. Please choose a different name.');
+      } else {
+        setError(message || 'Failed to create league');
+      }
       setLoading(false);
     }
   };
@@ -465,7 +485,19 @@ export default function CreateLeaguePage() {
         ) + 1
       : 0;
 
-  const tierCapacity = Number(selectedTier?.league_capacity) || 0;
+  const tierCapacity = React.useMemo(() => {
+    const base = Number(selectedTier?.league_capacity) || 0;
+    if (!isCustomTier) return base;
+    const inputCapacity = parseInt(formData.total_players, 10);
+    return Number.isFinite(inputCapacity) && inputCapacity > 0 ? inputCapacity : base;
+  }, [formData.total_players, selectedTier?.league_capacity, isCustomTier]);
+
+  // Update pricing when tier changes
+  React.useEffect(() => {
+    const totals = computePricingTotals(selectedTier, durationDays, tierCapacity);
+    setPricing(totals);
+  }, [selectedTier, computePricingTotals, durationDays, tierCapacity]);
+
   const totalMembers = tierCapacity;
 
   /**
@@ -636,6 +668,7 @@ export default function CreateLeaguePage() {
                     const isSelected = selectedTierId === value;
                     const capacity = tier?.league_capacity ?? 0;
                     const basePrice = tier?.pricing?.base_price ? Number(tier.pricing.base_price) : null;
+                    const isCustomCard = key === 'custom';
 
                     return (
                       <button
@@ -669,9 +702,9 @@ export default function CreateLeaguePage() {
                           'text-lg font-bold',
                           isSelected ? 'text-primary' : 'text-foreground'
                         )}>
-                          {basePrice != null ? `₹${Math.round(basePrice)}` : '—'}
+                          {isCustomCard ? 'Get pricing' : basePrice != null ? `₹${Math.round(basePrice)}` : '—'}
                         </span>
-                        {capacity > 0 && (
+                        {!isCustomCard && capacity > 0 && (
                           <span className="text-xs text-muted-foreground">
                             Up to {capacity} players
                           </span>
@@ -735,10 +768,28 @@ export default function CreateLeaguePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                   {/* Start Date */}
                   <div className="space-y-2">
-                    <Label>Start Date</Label>
+                    <div className="flex items-center gap-2">
+                      <Label className="leading-none">Start Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            aria-label="Start date guidance"
+                          >
+                            <Info className="size-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 text-sm" align="start">
+                          Set your start date at least 2 days from today so you have time to set up teams and players before kickoff.
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -763,9 +814,29 @@ export default function CreateLeaguePage() {
                       </PopoverContent>
                     </Popover>
                   </div>
+
+                  {/* Total Players */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 leading-none">Total Players</Label>
+                    {isCustomTier ? (
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="e.g., 50"
+                        value={formData.total_players}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, total_players: e.target.value }))
+                        }
+                      />
+                    ) : (
+                      <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
+                        {tierCapacity > 0 ? `${tierCapacity} players` : '—'}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                   <div className="space-y-2">
                     <Label>End Date</Label>
                     <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
@@ -774,10 +845,22 @@ export default function CreateLeaguePage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Duration</Label>
-                    <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
-                      {duration > 0 ? `${duration} days` : '—'}
-                    </div>
+                    <Label className="flex items-center gap-2 leading-none">Duration (days)</Label>
+                    {isCustomTier ? (
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="e.g., 30"
+                        value={formData.duration_days}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, duration_days: e.target.value }))
+                        }
+                      />
+                    ) : (
+                      <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
+                        {durationDays > 0 ? `${durationDays} days` : '—'}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -953,14 +1036,30 @@ export default function CreateLeaguePage() {
                     </div>
                   ) : pricing ? (
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Base Price</span>
-                        <span>₹{pricing.basePrice.toFixed(2)}</span>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span className="opacity-70">Setup fee</span>
+                        <span className="opacity-50">Included</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Platform Fee</span>
                         <span>₹{pricing.platformFee.toFixed(2)}</span>
                       </div>
+                      {pricing.perDayTotal > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Per-day ({pricing.perDayRate?.toFixed(2) ?? '0'}) × {durationDays} days
+                          </span>
+                          <span>₹{pricing.perDayTotal.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {pricing.perParticipantTotal > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Per-participant ({pricing.perParticipantRate?.toFixed(2) ?? '0'}) × {tierCapacity} players
+                          </span>
+                          <span>₹{pricing.perParticipantTotal.toFixed(2)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">GST ({pricing.gstPercentage}%)</span>
                         <span>₹{pricing.gst.toFixed(2)}</span>
