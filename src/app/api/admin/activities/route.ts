@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
     };
 
     const adminUserId = (session.user as any)?.id;
-    const activity = await createActivity(input, adminUserId);
+    // Pass adminUserId as createdBy (third arg). Do not treat it as access token.
+    const activity = await createActivity(input, undefined, adminUserId);
 
     if (!activity) {
       return NextResponse.json({ error: 'Failed to create activity' }, { status: 500 });
