@@ -38,6 +38,7 @@ export interface CreatePaymentInput {
   platform_fee: number;
   gst_amount: number;
   total_amount: number;
+  currency?: string;
   purpose?: PaymentPurpose;
   description?: string;
   receipt?: string;
@@ -60,6 +61,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<Payment>
       platform_fee: input.platform_fee,
       gst_amount: input.gst_amount,
       total_amount: input.total_amount,
+      currency: input.currency ?? 'INR',
       purpose: input.purpose || 'league_creation',
       description: input.description,
       receipt: input.receipt || `league_${input.league_id}`,
