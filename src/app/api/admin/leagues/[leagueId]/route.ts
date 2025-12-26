@@ -72,7 +72,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.status !== undefined) input.status = body.status;
     if (body.is_active !== undefined) input.is_active = body.is_active;
     if (body.num_teams !== undefined) input.num_teams = body.num_teams;
-    if (body.team_size !== undefined) input.team_size = body.team_size;
+    if (body.team_capacity !== undefined) input.team_capacity = body.team_capacity;
+    if (body.team_size !== undefined) input.team_capacity = body.team_size;
     if (body.rest_days !== undefined) input.rest_days = body.rest_days;
     if (body.auto_rest_day_enabled !== undefined) input.auto_rest_day_enabled = body.auto_rest_day_enabled;
     if (body.is_public !== undefined) input.is_public = body.is_public;

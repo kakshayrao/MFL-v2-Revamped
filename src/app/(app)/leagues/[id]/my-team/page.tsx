@@ -121,7 +121,7 @@ export default function MyTeamPage({
 
   const userTeamId = activeLeague?.team_id;
   const userTeamName = activeLeague?.team_name;
-  const teamSize = activeLeague?.team_size || 5;
+  const teamCapacity = activeLeague?.team_capacity || 5;
 
   // Fetch team members
   useEffect(() => {
@@ -236,7 +236,7 @@ export default function MyTeamPage({
     },
     {
       title: 'Team Members',
-      value: `${members.length}/${teamSize}`,
+      value: `${members.length}/${teamCapacity}`,
       description: 'Current roster',
       detail: 'Active members',
       icon: Users,

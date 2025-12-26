@@ -51,7 +51,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useLeagueNormalization } from '@/hooks/use-league-normalization';
 import { toast } from 'sonner';
 
 // ============================================================================
@@ -68,9 +67,6 @@ export default function LeagueSettingsPage({
   const { isHost } = useRole();
   const { activeLeague, refetch } = useLeague();
 
-  // Normalization hook must be called unconditionally before any early returns
-  const normalization = useLeagueNormalization(id);
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -84,13 +80,13 @@ export default function LeagueSettingsPage({
     is_public: false,
     is_exclusive: true,
     num_teams: '4',
-    team_size: '5',
+    team_capacity: '5',
     rest_days: '1',
     auto_rest_day_enabled: false,
     start_date: '',
     end_date: '',
     status: 'draft' as 'draft' | 'launched' | 'active' | 'completed',
-    normalize_points_by_team_size: false,
+    normalize_points_by_capacity: false,
   });
 
   const canEditStructure = formData.status === 'draft';
@@ -115,13 +111,13 @@ export default function LeagueSettingsPage({
           is_public: !!league.is_public,
           is_exclusive: !!league.is_exclusive,
           num_teams: String(league.num_teams || '4'),
-          team_size: String(league.team_size || '5'),
+          team_capacity: String(league.team_capacity || '5'),
           rest_days: String(league.rest_days ?? '1'),
           auto_rest_day_enabled: !!league.auto_rest_day_enabled,
           start_date: league.start_date,
           end_date: league.end_date,
           status: league.status,
-          normalize_points_by_team_size: !!league.normalize_points_by_team_size,
+          normalize_points_by_capacity: !!league.normalize_points_by_capacity,
         });
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : 'Failed to load league');
@@ -202,7 +198,7 @@ export default function LeagueSettingsPage({
         rest_days: Number(formData.rest_days),
         auto_rest_day_enabled: formData.auto_rest_day_enabled,
         description: formData.description,
-        normalize_points_by_team_size: formData.normalize_points_by_team_size,
+        normalize_points_by_capacity: formData.normalize_points_by_capacity,
       };
 
       if (canEditStructure) {
@@ -211,7 +207,7 @@ export default function LeagueSettingsPage({
           is_public: formData.is_public,
           is_exclusive: formData.is_exclusive,
           num_teams: Number(formData.num_teams),
-          team_size: Number(formData.team_size),
+          team_capacity: Number(formData.team_capacity),
           start_date: formData.start_date,
           end_date: formData.end_date,
         });
@@ -238,7 +234,7 @@ export default function LeagueSettingsPage({
           is_public: !!league.is_public,
           is_exclusive: !!league.is_exclusive,
           num_teams: String(league.num_teams || prev.num_teams),
-          team_size: String(league.team_size || prev.team_size),
+          team_capacity: String(league.team_capacity || prev.team_capacity),
           rest_days: String(league.rest_days ?? prev.rest_days),
           auto_rest_day_enabled: !!league.auto_rest_day_enabled,
           start_date: league.start_date,
@@ -250,8 +246,8 @@ export default function LeagueSettingsPage({
       await refetch();
 
       // Show toast for normalization status
-      if (payload.normalize_points_by_team_size !== undefined) {
-        const status = payload.normalize_points_by_team_size ? 'enabled' : 'disabled';
+      if (payload.normalize_points_by_capacity !== undefined) {
+        const status = payload.normalize_points_by_capacity ? 'enabled' : 'disabled';
         toast.success(`Point normalization ${status}.`);
       } else {
         toast.success('League settings updated.');
@@ -282,13 +278,7 @@ export default function LeagueSettingsPage({
   };
 
   const totalMembers =
-    Number(formData.num_teams || 0) * Number(formData.team_size || 0);
-
-  // Derived values from normalization hook
-  const normalizationLoading = normalization.isLoading;
-  const normalizationActive = !!normalization.normalize_points_by_team_size;
-  const variance = normalization.teamSizeVariance;
-  const canEnableNormalization = !!variance?.hasVariance;
+    Number(formData.num_teams || 0) * Number(formData.team_capacity || 0);
 
   return (
     <div className="flex flex-col gap-6 py-4 md:py-6">
@@ -406,7 +396,7 @@ export default function LeagueSettingsPage({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Number of Teams</Label>
                     <Select
@@ -423,27 +413,6 @@ export default function LeagueSettingsPage({
                         {[2, 3, 4, 5, 6, 8, 10, 12, 16, 20].map((n) => (
                           <SelectItem key={n} value={n.toString()}>
                             {n} teams
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Team Size</Label>
-                    <Select
-                      value={formData.team_size}
-                      onValueChange={(v) =>
-                        setFormData((prev) => ({ ...prev, team_size: v }))
-                      }
-                      disabled={!canEditStructure}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[3, 4, 5, 6, 8, 10, 12, 15, 20].map((n) => (
-                          <SelectItem key={n} value={n.toString()}>
-                            {n} members
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -515,53 +484,6 @@ export default function LeagueSettingsPage({
                     }
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Fairness & Normalization */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Trophy className="size-5 text-primary" />
-                  Fairness & Normalization
-                </CardTitle>
-                <CardDescription>
-                  Adjust points based on team size differences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between p-4 rounded-lg border">
-                  <div className="space-y-1 flex-1">
-                    <Label className="flex items-center gap-2">Normalize Points by Team Size</Label>
-                    {normalizationLoading ? (
-                      <p className="text-sm text-muted-foreground">Loading team size data...</p>
-                    ) : canEnableNormalization ? (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Teams vary from {Math.round(variance.minSize)} to {Math.round(variance.maxSize)} members. Enable to fairly compare across teams.
-                        </p>
-                        <p className="text-xs text-muted-foreground italic">
-                          Formula: <code className="bg-muted px-1 py-0.5 rounded font-mono text-[11px]">normalized_points = (raw_points / team_size) × {Math.round(variance.maxSize)}</code>
-                        </p>
-                        <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">💾 Click "Save Changes" to apply</p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Available only when teams have different member counts.
-                      </p>
-                    )}
-                  </div>
-                  <Switch
-                    checked={formData.normalize_points_by_team_size}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, normalize_points_by_team_size: checked }))
-                    }
-                    disabled={normalizationLoading || !canEnableNormalization}
-                  />
-                </div>
-                {normalizationActive && canEnableNormalization && (
-                  <Badge variant="secondary" className="w-fit">Normalization Active</Badge>
-                )}
               </CardContent>
             </Card>
 
@@ -695,20 +617,12 @@ export default function LeagueSettingsPage({
                     <span className="font-medium">{formData.num_teams}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Team Size</span>
-                    <span className="font-medium">{formData.team_size}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Rest Days/Week</span>
                     <span className="font-medium">{formData.rest_days}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Auto Rest Day</span>
                     <span className="font-medium">{formData.auto_rest_day_enabled ? 'On' : 'Off'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Points Normalized</span>
-                    <span className="font-medium">{formData.normalize_points_by_team_size ? 'On' : 'Off'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Capacity</span>

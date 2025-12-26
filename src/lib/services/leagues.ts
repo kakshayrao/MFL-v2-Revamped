@@ -13,10 +13,10 @@ export interface LeagueInput {
   start_date: string; // YYYY-MM-DD
   end_date: string;   // YYYY-MM-DD
   num_teams?: number;
-  team_size?: number;
+  team_capacity?: number;
   rest_days?: number;
   auto_rest_day_enabled?: boolean;
-  normalize_points_by_team_size?: boolean; // Added to match usage and prevent TS errors
+  normalize_points_by_capacity?: boolean;
   is_public?: boolean;
   is_exclusive?: boolean;
 }
@@ -30,6 +30,38 @@ export interface League extends LeagueInput {
   created_date: string;
   modified_by: string;
   modified_date: string;
+}
+
+function mapDbLeagueToLeague(dbLeague: any): League {
+  if (!dbLeague) return dbLeague;
+
+  const {
+    team_size,
+    normalize_points_by_team_size,
+    ...rest
+  } = dbLeague;
+
+  return {
+    ...rest,
+    team_capacity: team_size ?? 5,
+    normalize_points_by_capacity: normalize_points_by_team_size ?? false,
+  } as League;
+}
+
+function mapLeagueInputToDbUpdates(input: Partial<LeagueInput>): Record<string, any> {
+  const updates: Record<string, any> = { ...input };
+
+  if ('team_capacity' in updates) {
+    updates.team_size = updates.team_capacity;
+    delete updates.team_capacity;
+  }
+
+  if ('normalize_points_by_capacity' in updates) {
+    updates.normalize_points_by_team_size = updates.normalize_points_by_capacity;
+    delete updates.normalize_points_by_capacity;
+  }
+
+  return updates;
 }
 
 /**
@@ -62,10 +94,10 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
         start_date: data.start_date,
         end_date: data.end_date,
         num_teams: data.num_teams || 4,
-        team_size: data.team_size || 5,
+        team_size: data.team_capacity || 5,
         rest_days: data.rest_days || 1,
         auto_rest_day_enabled: data.auto_rest_day_enabled ?? false,
-        normalize_points_by_team_size: data.normalize_points_by_team_size ?? false,
+        normalize_points_by_team_size: data.normalize_points_by_capacity ?? false,
         is_public: data.is_public || false,
         is_exclusive: data.is_exclusive ?? true,
         invite_code: generateInviteCode(),
@@ -121,7 +153,7 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
       }
     }
 
-    return league as League;
+    return mapDbLeagueToLeague(league);
   } catch (err) {
     console.error('League creation error:', err);
     return null;
@@ -142,7 +174,7 @@ export async function getLeagueById(leagueId: string): Promise<League | null> {
       .single();
 
     if (error) return null;
-    return data as League;
+    return mapDbLeagueToLeague(data);
   } catch (err) {
     console.error('Error fetching league:', err);
     return null;
@@ -170,7 +202,8 @@ export async function getLeaguesForUser(userId: string): Promise<League[]> {
     const leaguesMap = new Map<string, League>();
     (data || []).forEach((row: any) => {
       if (row.leagues) {
-        leaguesMap.set(row.leagues.league_id, row.leagues as League);
+        const league = mapDbLeagueToLeague(row.leagues);
+        leaguesMap.set(league.league_id, league);
       }
     });
 
@@ -218,24 +251,24 @@ export async function updateLeague(
       }
       if (data.description !== undefined) allowedUpdates.description = data.description;
 
-      // Allow toggling normalize_points_by_team_size with safeguards
-      if (data.normalize_points_by_team_size !== undefined) {
+      // Allow toggling normalize_points_by_capacity with safeguards
+      if (data.normalize_points_by_capacity !== undefined) {
         // Fetch teams and check for variance
         const teams = await getTeamsForLeague(leagueId);
         const memberCounts = teams.map(t => t.member_count || 0);
         const hasTeams = teams.length > 0;
         const hasVariance = hasTeams && memberCounts.some(c => c !== memberCounts[0]);
 
-        if (data.normalize_points_by_team_size === true) {
+        if (data.normalize_points_by_capacity === true) {
           // Only allow enabling when variance exists
           if (hasVariance) {
-            allowedUpdates.normalize_points_by_team_size = true;
+            allowedUpdates.normalize_points_by_capacity = true;
           } else {
-            console.warn('Normalization cannot be enabled: no team size variance or no teams');
+            console.warn('Normalization cannot be enabled: no member-count variance or no teams');
           }
         } else {
           // Always allow disabling
-          allowedUpdates.normalize_points_by_team_size = false;
+          allowedUpdates.normalize_points_by_capacity = false;
         }
       }
     }
@@ -248,7 +281,7 @@ export async function updateLeague(
     const { data: updated, error } = await getSupabaseServiceRole()
       .from('leagues')
       .update({
-        ...allowedUpdates,
+        ...mapLeagueInputToDbUpdates(allowedUpdates),
         modified_by: userId,
         modified_date: new Date().toISOString(),
       })
@@ -261,7 +294,7 @@ export async function updateLeague(
       return null;
     }
 
-    return updated as League;
+    return mapDbLeagueToLeague(updated);
   } catch (err) {
     console.error('Error updating league:', err);
     return null;

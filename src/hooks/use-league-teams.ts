@@ -58,7 +58,7 @@ export interface LeagueTeamsData {
     league_id: string;
     league_name: string;
     num_teams: number;
-    team_size: number;
+    team_capacity: number;
     status: string;
     host_user_id: string;
   };

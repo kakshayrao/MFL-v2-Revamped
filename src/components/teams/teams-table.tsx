@@ -336,7 +336,7 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
           <div>
             <div className="font-medium">{row.original.team_name}</div>
             <div className="text-sm text-muted-foreground">
-              {row.original.member_count} / {data?.league.team_size || 0} members
+              {row.original.member_count} members
             </div>
           </div>
         </div>
@@ -381,7 +381,7 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
       header: "Members",
       cell: ({ row }) => (
         <Badge variant="outline">
-          {row.original.member_count} / {data?.league.team_size || 0}
+          {row.original.member_count}
         </Badge>
       ),
     },
@@ -418,7 +418,7 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
                 leagueName={data?.league.league_name || ""}
                 inviteCode={row.original.invite_code || ""}
                 memberCount={row.original.member_count}
-                maxCapacity={data?.league.team_size || 5}
+                maxCapacity={data?.league.team_capacity || 5}
                 trigger={
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                     <Share2 className="mr-2 size-4" />
@@ -701,7 +701,7 @@ export function TeamsTable({ leagueId, isHost, isGovernor }: TeamsTableProps) {
           onOpenChange={setAddMembersDialogOpen}
           teamId={selectedTeam.team_id}
           teamName={selectedTeam.team_name}
-          teamSize={data?.league.team_size || 0}
+          teamCapacity={data?.league.team_capacity || 0}
           currentMemberCount={selectedTeam.member_count}
           unallocatedMembers={(data?.members.unallocated || []).map((m: any) => ({
             ...m,

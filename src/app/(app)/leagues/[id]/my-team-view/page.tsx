@@ -108,7 +108,7 @@ export default function MyTeamViewPage({
 
   const userTeamId = activeLeague?.team_id;
   const userTeamName = activeLeague?.team_name;
-  const teamSize = activeLeague?.team_size || 5;
+  const teamCapacity = activeLeague?.team_capacity || 5;
 
   // Fetch team members
   useEffect(() => {
@@ -194,7 +194,7 @@ export default function MyTeamViewPage({
     },
     {
       title: 'Team Members',
-      value: `${members.length}/${teamSize}`,
+      value: `${members.length}/${teamCapacity}`,
       description: 'Current roster',
       detail: 'Active members',
       icon: Users,
@@ -299,7 +299,7 @@ export default function MyTeamViewPage({
           )}
           <Badge variant="outline">
             <Users className="size-3 mr-1" />
-            {members.length}/{teamSize} Members
+            {members.length}/{teamCapacity} Members
           </Badge>
         </div>
       </div>

@@ -187,7 +187,6 @@ export function LeaguesTable() {
     start_date: string;
     end_date: string;
     num_teams?: number;
-    team_size?: number;
     rest_days?: number;
     is_public?: boolean;
     is_exclusive?: boolean;
@@ -202,7 +201,6 @@ export function LeaguesTable() {
         start_date: leagueData.start_date,
         end_date: leagueData.end_date,
         num_teams: leagueData.num_teams,
-        team_size: leagueData.team_size,
         rest_days: leagueData.rest_days,
         is_public: leagueData.is_public,
         is_exclusive: leagueData.is_exclusive,
@@ -224,7 +222,6 @@ export function LeaguesTable() {
         start_date: leagueData.start_date,
         end_date: leagueData.end_date,
         num_teams: leagueData.num_teams,
-        team_size: leagueData.team_size,
         rest_days: leagueData.rest_days,
         is_public: leagueData.is_public,
         is_exclusive: leagueData.is_exclusive,
@@ -315,7 +312,7 @@ export function LeaguesTable() {
       header: "Teams",
       cell: ({ row }) => (
         <span className="text-muted-foreground">
-          {row.original.num_teams} teams ({row.original.team_size}/team)
+          {row.original.num_teams} teams
         </span>
       ),
     },

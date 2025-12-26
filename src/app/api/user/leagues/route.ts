@@ -111,7 +111,7 @@ export async function GET() {
         start_date: league?.start_date || null,
         end_date: league?.end_date || null,
         num_teams: league?.num_teams || 4,
-        team_size: league?.team_size || 5,
+        team_capacity: league?.team_size || 5,
         is_public: league?.is_public || false,
         is_exclusive: league?.is_exclusive || true,
         invite_code: league?.invite_code || null,

@@ -102,7 +102,7 @@ export default function CreateLeaguePage() {
     league_name: '',
     description: '',
     num_teams: '4',
-    team_size: '5',
+    team_capacity: '5',
     rest_days: '1',
     is_public: false,
     is_exclusive: true,
@@ -214,7 +214,7 @@ export default function CreateLeaguePage() {
           start_date: format(startDate, 'yyyy-MM-dd'),
           end_date: format(endDate, 'yyyy-MM-dd'),
           num_teams: parseInt(formData.num_teams),
-          team_size: parseInt(formData.team_size),
+          team_capacity: parseInt(formData.team_capacity),
           rest_days: parseInt(formData.rest_days),
           is_public: formData.is_public,
           is_exclusive: formData.is_exclusive,
@@ -307,7 +307,7 @@ export default function CreateLeaguePage() {
       : 0;
 
   const totalMembers =
-    parseInt(formData.num_teams) * parseInt(formData.team_size);
+    parseInt(formData.num_teams) * parseInt(formData.team_capacity);
 
   // Success State - Show Dialog with Confetti
   if (step === 'success') {
@@ -540,7 +540,7 @@ export default function CreateLeaguePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Number of Teams</Label>
                     <Select
@@ -554,24 +554,6 @@ export default function CreateLeaguePage() {
                         {[2, 3, 4, 5, 6, 8, 10, 12, 16, 20].map((n) => (
                           <SelectItem key={n} value={n.toString()}>
                             {n} teams
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Team Size</Label>
-                    <Select
-                      value={formData.team_size}
-                      onValueChange={(v) => handleSelectChange('team_size', v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[3, 4, 5, 6, 8, 10, 12, 15, 20].map((n) => (
-                          <SelectItem key={n} value={n.toString()}>
-                            {n} members
                           </SelectItem>
                         ))}
                       </SelectContent>

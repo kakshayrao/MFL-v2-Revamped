@@ -18,7 +18,7 @@ export interface LeagueWithRoles {
   start_date: string | null;
   end_date: string | null;
   num_teams: number;
-  team_size: number;
+  team_capacity: number;
   is_public: boolean;
   is_exclusive: boolean;
   invite_code: string | null;

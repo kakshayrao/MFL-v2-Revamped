@@ -76,7 +76,7 @@ interface TeamMemberViewProps {
   leagueId: string;
   teamId: string;
   teamName: string;
-  teamSize: number;
+  teamCapacity: number;
   isCaptain: boolean;
 }
 
@@ -84,7 +84,7 @@ function TeamMemberView({
   leagueId,
   teamId,
   teamName,
-  teamSize,
+  teamCapacity,
   isCaptain,
 }: TeamMemberViewProps) {
   const [members, setMembers] = useState<any[]>([]);
@@ -195,7 +195,7 @@ function TeamMemberView({
         <StatCard title="Team Rank" value={teamRank} icon={Trophy} />
         <StatCard
           title="Team Members"
-          value={`${members.length}/${teamSize}`}
+          value={`${members.length}/${teamCapacity}`}
           icon={Users}
         />
         <StatCard title="Team Points" value={teamPoints} icon={Target} />
@@ -350,7 +350,7 @@ export default function TeamPage({ params }: { params: Promise<{ id: string }> }
         leagueId={leagueId}
         teamId={activeLeague.team_id}
         teamName={activeLeague.team_name}
-        teamSize={activeLeague.team_size || 5}
+         teamCapacity={activeLeague.team_capacity || 5}
         isCaptain={isCaptain}
       />
     );

@@ -17,7 +17,7 @@ export interface LeagueInviteInfo {
   start_date: string;
   end_date: string;
   num_teams: number;
-  team_size: number;
+  team_capacity: number;
   is_public: boolean;
   member_count: number;
   max_capacity: number;
@@ -95,7 +95,7 @@ export async function validateInviteCode(code: string): Promise<LeagueInviteInfo
       start_date: league.start_date,
       end_date: league.end_date,
       num_teams: league.num_teams || 4,
-      team_size: league.team_size || 5,
+      team_capacity: league.team_size || 5,
       is_public: league.is_public || false,
       member_count: currentCount,
       max_capacity: maxCapacity,

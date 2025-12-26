@@ -176,7 +176,10 @@ export function useLeagueLeaderboard(
       const teamsResp = await fetch(`/api/leagues/${leagueId}/teams`);
       if (teamsResp.ok) {
         const teamsJson = await teamsResp.json();
-        const normalizeActive = Boolean(teamsJson?.data?.league?.normalize_points_by_team_size);
+        const normalizeActive = Boolean(
+          teamsJson?.data?.league?.normalize_points_by_capacity ??
+          teamsJson?.data?.league?.normalize_points_by_team_size
+        );
         const variance = teamsJson?.data?.teamSizeVariance as { hasVariance: boolean; avgSize: number; minSize: number; maxSize: number } | undefined;
         const teamMemberMap: Record<string, number> = {};
         const apiTeams: Array<{ team_id: string; member_count?: number }> = teamsJson?.data?.teams || [];
@@ -184,7 +187,7 @@ export function useLeagueLeaderboard(
 
         // Compute normalized points when active and variance exists
         if (normalizeActive && variance?.hasVariance && variance.maxSize > 0 && Array.isArray(data?.teams)) {
-          // Apply normalized points using: (raw_points / team_size) × max_team_size
+          // Apply normalized points using: (raw_points / member_count) × max_team_size
           const normalizedTeams = data.teams.map((t) => {
             const memberCount = Math.max(1, t.member_count);
             const normalizedBase = Math.round(t.points * (variance.maxSize / memberCount));

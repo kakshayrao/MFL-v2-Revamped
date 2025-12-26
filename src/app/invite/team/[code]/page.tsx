@@ -315,9 +315,9 @@ export default function TeamInvitePage({
             <div className="p-3 rounded-lg bg-muted/50 text-center">
               <Users className="size-5 mx-auto mb-1 text-primary" />
               <p className="text-lg font-bold">
-                {team?.member_count}/{team?.max_capacity}
+                {team?.member_count}
               </p>
-              <p className="text-xs text-muted-foreground">Team Size</p>
+              <p className="text-xs text-muted-foreground">Members</p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50 text-center">
               <Calendar className="size-5 mx-auto mb-1 text-primary" />

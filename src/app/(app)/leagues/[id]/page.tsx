@@ -96,7 +96,7 @@ interface LeagueDetails {
   is_public: boolean;
   is_exclusive: boolean;
   num_teams: number;
-  team_size: number;
+  team_capacity: number;
   rest_days: number;
   invite_code: string | null;
 }
@@ -111,7 +111,6 @@ interface LeagueStats {
   dailyAverage: number;
   maxCapacity: number;
 }
-
 type RecentDayRow = {
   date: string; // YYYY-MM-DD (local)
   label: string;
@@ -366,8 +365,12 @@ export default function LeagueDashboardPage({
 
         if (myRes.ok) {
           const json = await myRes.json();
-          const subs: Array<{ date: string; type: 'workout' | 'rest'; rr_value: number | null; status?: string | null }> =
+          const subs: Array<{ date: string; type: string; rr_value: number | string | null; status?: string | null }> =
             json?.success && json?.data?.submissions ? json.data.submissions : [];
+
+          // DEBUG: log what we're receiving from the API
+          console.log('[MySummary] Raw submissions:', subs);
+          console.log('[MySummary] Query range:', league.start_date, 'to', effectiveEndStr);
 
           teamId = (json?.data?.teamId as string | null) ?? null;
 
@@ -377,16 +380,25 @@ export default function LeagueDashboardPage({
           };
 
           const approvedSubs = subs.filter((s) => isApproved(s));
+          console.log('[MySummary] Approved submissions:', approvedSubs);
 
           // User-facing definitions for the dashboard:
           // - Points: approved workouts count (1 point per approved workout)
           // - Avg RR: total approved RR divided by the number of approved workout-days (points)
-          const approvedWorkouts = approvedSubs.filter((s) => s.type === 'workout');
+          const approvedWorkouts = approvedSubs.filter((s) => String(s.type).toLowerCase() === 'workout');
           points = approvedWorkouts.length;
-          restUsed = approvedSubs.filter((s) => s.type === 'rest').length;
+          restUsed = approvedSubs.filter((s) => String(s.type).toLowerCase() === 'rest').length;
 
           const totalRR = approvedWorkouts
-            .map((s) => (typeof s.rr_value === 'number' ? s.rr_value : 0))
+            .map((s) => {
+              const v = s.rr_value;
+              if (typeof v === 'number') return v;
+              if (typeof v === 'string') {
+                const parsed = parseFloat(v);
+                return Number.isFinite(parsed) ? parsed : 0;
+              }
+              return 0;
+            })
             .filter((v) => Number.isFinite(v) && v > 0)
             .reduce((a, b) => a + b, 0);
 
@@ -463,6 +475,7 @@ export default function LeagueDashboardPage({
           }
         }
 
+        console.log('[MySummary] Final values:', { points, avgRR, restUsed, restUnused, missedDays, teamAvgRR, teamPoints });
         setMySummary({ points, avgRR, restUsed, restUnused, missedDays, teamAvgRR, teamPoints });
       } catch {
         setMySummary(null);
@@ -607,7 +620,7 @@ export default function LeagueDashboardPage({
             leagueName={league.league_name}
             inviteCode={league.invite_code}
             memberCount={stats?.memberCount}
-            maxCapacity={stats?.maxCapacity || (league.num_teams * league.team_size)}
+            maxCapacity={stats?.maxCapacity || (league.num_teams * league.team_capacity)}
           />
           {isHost && (
             <Button asChild size="sm">
@@ -662,10 +675,10 @@ export default function LeagueDashboardPage({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  const youPoints = typeof mySummary.points === 'number' ? mySummary.points : null;
-                  const you = typeof mySummary.avgRR === 'number' ? mySummary.avgRR : null;
-                  const team = typeof mySummary.teamAvgRR === 'number' ? mySummary.teamAvgRR : null;
-                  const teamPoints = typeof mySummary.teamPoints === 'number' ? mySummary.teamPoints : null;
+                  const youPoints = typeof mySummary?.points === 'number' ? mySummary.points : null;
+                  const you = typeof mySummary?.avgRR === 'number' ? mySummary.avgRR : null;
+                  const team = typeof mySummary?.teamAvgRR === 'number' ? mySummary.teamAvgRR : null;
+                  const teamPoints = typeof mySummary?.teamPoints === 'number' ? mySummary.teamPoints : null;
                   const min = 1.0;
                   const max = 2.0;
                   const span = max - min;
@@ -977,7 +990,7 @@ export default function LeagueDashboardPage({
         </div>
 
         <div className="rounded-lg border">
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0">
+          <div className="grid grid-cols-2 md:grid-cols-3 divide-x divide-y md:divide-y-0">
             <div className="p-4 flex flex-col items-center text-center">
               <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
                 <Users className="size-5 text-primary" />
@@ -987,16 +1000,9 @@ export default function LeagueDashboardPage({
             </div>
             <div className="p-4 flex flex-col items-center text-center">
               <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                <Target className="size-5 text-primary" />
-              </div>
-              <p className="text-2xl font-bold tabular-nums">{league.team_size || 0}</p>
-              <p className="text-xs text-muted-foreground">Per Team</p>
-            </div>
-            <div className="p-4 flex flex-col items-center text-center">
-              <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
                 <Medal className="size-5 text-primary" />
               </div>
-              <p className="text-2xl font-bold tabular-nums">{(league.num_teams || 0) * (league.team_size || 0)}</p>
+              <p className="text-2xl font-bold tabular-nums">{(league.num_teams || 0) * (league.team_capacity || 0)}</p>
               <p className="text-xs text-muted-foreground">Max Capacity</p>
             </div>
             <div className="p-4 flex flex-col items-center text-center">

@@ -14,11 +14,15 @@ const createLeagueSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
   num_teams: z.number().int().positive().optional(),
+  team_capacity: z.number().int().positive().optional(),
   team_size: z.number().int().positive().optional(),
   rest_days: z.number().int().min(0).max(7).optional(),
   is_public: z.boolean().optional(),
   is_exclusive: z.boolean().optional(),
-});
+}).transform(({ team_capacity, team_size, ...rest }) => ({
+  ...rest,
+  team_capacity: team_capacity ?? team_size,
+}));
 
 export async function GET(req: NextRequest) {
   try {

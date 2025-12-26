@@ -106,7 +106,7 @@ export async function POST(
       );
     }
 
-    // Get league to check team_size limit
+    // Get league to check team capacity limit
     const league = await getLeagueById(leagueId);
     if (!league) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
@@ -114,9 +114,9 @@ export async function POST(
 
     // Get current team size
     const currentMembers = await getTeamMembers(teamId, leagueId);
-    if (currentMembers.length >= league.team_size) {
+    if (currentMembers.length >= (league.team_capacity || 0)) {
       return NextResponse.json(
-        { error: `Team is full. Maximum ${league.team_size} members allowed.` },
+        { error: `Team is full. Maximum ${league.team_capacity} members allowed.` },
         { status: 400 }
       );
     }

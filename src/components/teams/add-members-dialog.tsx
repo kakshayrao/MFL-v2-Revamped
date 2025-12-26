@@ -24,7 +24,7 @@ interface AddMembersDialogProps {
   onOpenChange: (open: boolean) => void;
   teamId: string;
   teamName: string;
-  teamSize: number;
+  teamCapacity: number;
   currentMemberCount: number;
   unallocatedMembers: LeagueMember[];
   onAddMember: (teamId: string, leagueMemberId: string) => Promise<boolean>;
@@ -35,7 +35,7 @@ export function AddMembersDialog({
   onOpenChange,
   teamId,
   teamName,
-  teamSize,
+  teamCapacity,
   currentMemberCount,
   unallocatedMembers,
   onAddMember,
@@ -63,7 +63,7 @@ export function AddMembersDialog({
     );
   }, [unallocatedMembers, searchQuery]);
 
-  const remainingSlots = teamSize - currentMemberCount;
+  const remainingSlots = teamCapacity - currentMemberCount;
   const canAddMore = remainingSlots > 0;
 
   const handleAddMember = async (memberId: string) => {
@@ -87,7 +87,7 @@ export function AddMembersDialog({
     setIsLoading(true);
     try {
       for (const memberId of selectedMembers) {
-        if (currentMemberCount + selectedMembers.indexOf(memberId) >= teamSize) break;
+        if (currentMemberCount + selectedMembers.indexOf(memberId) >= teamCapacity) break;
         await onAddMember(teamId, memberId);
       }
       onOpenChange(false);
