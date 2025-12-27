@@ -48,6 +48,13 @@ type PresetChallenge = {
   created_date: string;
 };
 
+type ChallengePricing = {
+  pricing_id?: string;
+  per_day_rate: number;
+  tax: number | null;
+  admin_markup: number | null;
+};
+
 export default function AdminChallengesPage() {
   const [loading, setLoading] = React.useState(true);
   const [challenges, setChallenges] = React.useState<PresetChallenge[]>([]);
@@ -59,6 +66,10 @@ export default function AdminChallengesPage() {
     description: '',
     challenge_type: 'individual' as 'individual' | 'team' | 'sub_team',
   });
+
+  const [pricing, setPricing] = React.useState<ChallengePricing | null>(null);
+  const [savingPricing, setSavingPricing] = React.useState(false);
+  const [pricingEditMode, setPricingEditMode] = React.useState(true);
 
   const fetchChallenges = React.useCallback(async () => {
     setLoading(true);
@@ -79,6 +90,24 @@ export default function AdminChallengesPage() {
   React.useEffect(() => {
     fetchChallenges();
   }, [fetchChallenges]);
+
+  const fetchPricing = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/challenge-pricing');
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load pricing');
+      const data = json.data || { per_day_rate: 0, tax: null, admin_markup: null };
+      setPricing(data);
+      // If we already have pricing, default to view mode; otherwise allow editing
+      setPricingEditMode(!data || data.per_day_rate === 0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load pricing');
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchPricing();
+  }, [fetchPricing]);
 
   const handleOpenDialog = (challenge?: PresetChallenge) => {
     if (challenge) {
@@ -192,6 +221,142 @@ export default function AdminChallengesPage() {
           Add Challenge
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle>Challenge Pricing</CardTitle>
+              <CardDescription>
+                Set the default per-day rate and tax (percentage) applied to challenges
+              </CardDescription>
+            </div>
+            {!pricingEditMode && (
+              <Button variant="secondary" size="sm" onClick={() => setPricingEditMode(true)}>
+                Edit pricing
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+
+        {pricingEditMode ? (
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Per-day rate</label>
+                <Input
+                  type="number"
+                  value={pricing?.per_day_rate ?? ''}
+                  onChange={(e) =>
+                    setPricing((prev) => ({
+                      ...(prev || { per_day_rate: 0, tax: null, admin_markup: null }),
+                      per_day_rate: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  min={0}
+                  step={0.01}
+                  inputMode="decimal"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Tax (%)</label>
+                <Input
+                  type="number"
+                  value={pricing?.tax ?? ''}
+                  onChange={(e) =>
+                    setPricing((prev) => ({
+                      ...(prev || { per_day_rate: 0, tax: null, admin_markup: null }),
+                      tax: e.target.value === '' ? null : parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  min={0}
+                  step={0.01}
+                  inputMode="decimal"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Admin markup (%)</label>
+                <Input
+                  type="number"
+                  value={pricing?.admin_markup ?? ''}
+                  onChange={(e) =>
+                    setPricing((prev) => ({
+                      ...(prev || { per_day_rate: 0, tax: null, admin_markup: null }),
+                      admin_markup: e.target.value === '' ? null : parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  min={0}
+                  step={0.01}
+                  inputMode="decimal"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={async () => {
+                  if (!pricing) return;
+                  setSavingPricing(true);
+                  try {
+                    const res = await fetch('/api/admin/challenge-pricing', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        per_day_rate: pricing.per_day_rate,
+                        tax: pricing.tax ?? 0,
+                        admin_markup: pricing.admin_markup ?? 0,
+                      }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok || !json.success) throw new Error(json.error || 'Failed to save pricing');
+                    toast.success('Pricing saved');
+                    setPricing(json.data);
+                    setPricingEditMode(false);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to save pricing');
+                  } finally {
+                    setSavingPricing(false);
+                  }
+                }}
+                disabled={savingPricing || !pricing}
+              >
+                {savingPricing ? 'Saving…' : 'Save pricing'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPricingEditMode(false)}
+                disabled={savingPricing}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        ) : (
+          <CardContent className="space-y-4 bg-[#0d1930] text-white rounded-xl border border-primary/20">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-lg font-semibold">Pricing</p>
+                <p className="text-sm text-white/70">Current defaults applied to all challenges</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3 text-sm pb-1">
+              <div className="rounded-lg border border-white/10 bg-white/5 p-2.5 shadow-sm min-h-[84px] flex flex-col justify-center gap-1">
+                <p className="text-white/60 text-[11px] uppercase tracking-wide">Per-day rate</p>
+                <p className="text-lg font-semibold">₹{pricing?.per_day_rate?.toFixed ? pricing.per_day_rate.toFixed(2) : pricing?.per_day_rate ?? '—'}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 p-2.5 shadow-sm min-h-[84px] flex flex-col justify-center gap-1">
+                <p className="text-white/60 text-[11px] uppercase tracking-wide">Tax</p>
+                <p className="text-lg font-semibold">{pricing?.tax?.toFixed ? pricing.tax.toFixed(2) : pricing?.tax ?? 0}%</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 p-2.5 shadow-sm min-h-[84px] flex flex-col justify-center gap-1">
+                <p className="text-white/60 text-[11px] uppercase tracking-wide">Admin markup</p>
+                <p className="text-lg font-semibold">{pricing?.admin_markup?.toFixed ? pricing.admin_markup.toFixed(2) : pricing?.admin_markup ?? 0}%</p>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {loading && <p className="text-muted-foreground">Loading...</p>}
 

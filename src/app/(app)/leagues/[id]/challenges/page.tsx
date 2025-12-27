@@ -182,6 +182,19 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
     const taxMultiplier = taxPercent / 100;
     return base + taxMultiplier * base;
   }, [pricing, finishDays]);
+
+  const finishBase = React.useMemo(() => {
+    if (!pricing?.per_day_rate || !finishDays) return 0;
+    return finishDays * (pricing.per_day_rate || 0);
+  }, [pricing, finishDays]);
+
+  const finishTaxPercent = pricing?.tax != null ? pricing.tax : 0;
+  const finishTaxAmount = React.useMemo(() => {
+    if (!finishBase) return 0;
+    return finishBase * ((finishTaxPercent || 0) / 100);
+  }, [finishBase, finishTaxPercent]);
+
+  const pricingPillClass = 'rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/80 shadow-sm';
   // Delete dialog state
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [challengeToDelete, setChallengeToDelete] = React.useState<Challenge | null>(null);
@@ -1271,14 +1284,63 @@ export default function LeagueChallengesPage({ params }: { params: Promise<{ id:
               />
             </div>
           </div>
-          <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-1">
-            <p className="font-medium">Pricing</p>
-            <p>Duration: {finishDays || '-'} day{finishDays === 1 ? '' : 's'}</p>
-            <p>
-              {pricing?.per_day_rate != null
-                ? `Total: ₹${finishAmount.toFixed(2)} (₹${pricing.per_day_rate} per day + tax ${pricing.tax != null ? `${pricing.tax.toFixed(2)}%` : '(tax missing)'})`
-                : 'Pricing not available'}
-            </p>
+          <div className="rounded-xl border border-primary/20 bg-[#0d1930] text-white shadow-2xl">
+            <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-lg font-semibold leading-tight">
+                  {finishChallenge?.name || 'Challenge Pricing'}
+                </p>
+                <p className="text-sm text-white/70">
+                  {finishChallenge?.description || 'Review duration and payable amount before activation.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className={`${pricingPillClass} bg-blue-500/10 text-blue-100 border-blue-500/30`}>Draft</span>
+                <span className={`${pricingPillClass} bg-green-500/10 text-green-100 border-green-500/30`}>Pay to Activate</span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2 px-4">
+              <span className={pricingPillClass}>
+                Duration: {finishDays || '-'} day{finishDays === 1 ? '' : 's'}
+              </span>
+              {finishChallenge?.challenge_type && (
+                <span className={pricingPillClass}>
+                  Type: {finishChallenge.challenge_type.replace('_', ' ')}
+                </span>
+              )}
+              <span className={pricingPillClass}>
+                Points: {finishChallenge?.total_points ?? 0}
+              </span>
+            </div>
+
+            <div className="mt-4 border-t border-white/10 px-4 py-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-wide text-white/60">Base amount</p>
+                <p className="text-xl font-semibold">₹{finishBase.toFixed(2)}</p>
+                <p className="text-xs text-white/60">
+                  ₹{pricing?.per_day_rate?.toFixed ? pricing.per_day_rate.toFixed(2) : pricing?.per_day_rate ?? '—'} × {finishDays || 0} day{finishDays === 1 ? '' : 's'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-wide text-white/60">Tax</p>
+                <p className="text-xl font-semibold">₹{finishTaxAmount.toFixed(2)}</p>
+                <p className="text-xs text-white/60">{finishTaxPercent?.toFixed ? finishTaxPercent.toFixed(2) : finishTaxPercent}%</p>
+              </div>
+
+              <div className="sm:col-span-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-white/60">Total payable</p>
+                  <p className="text-2xl font-bold">₹{finishAmount.toFixed(2)}</p>
+                </div>
+                <div className="text-right text-xs text-white/60 space-y-1">
+                  {pricing?.admin_markup != null && (
+                    <p>Admin markup: {pricing.admin_markup.toFixed ? pricing.admin_markup.toFixed(2) : pricing.admin_markup}%</p>
+                  )}
+                  <p>Includes taxes</p>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFinishOpen(false)} disabled={finishing}>
