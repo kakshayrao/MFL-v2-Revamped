@@ -31,10 +31,6 @@ export function HeroSection() {
                 className="object-cover"
                 priority
               />
-              {/* Fallback placeholder if no image */}
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
-                <span className="text-muted-foreground text-sm">Hero Image</span>
-              </div>
             </div>
           </div>
 
