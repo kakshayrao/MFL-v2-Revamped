@@ -414,7 +414,15 @@ export default function TeamSubmissionsPage({
         const isOwnSubmission = !!currentUserId && row.original.member.user_id === currentUserId;
         return (
           <div className="flex flex-col gap-0.5">
-            <StatusBadge status={row.original.status} />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <StatusBadge status={row.original.status} />
+              {(Boolean(row.original.reupload_of)) && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+                  <RefreshCw className="size-2.5 mr-1" />
+                  Re-submitted
+                </Badge>
+              )}
+            </div>
             {showGradedBy ? (
               <span className="text-xs text-muted-foreground">Graded by {roleLabel}</span>
             ) : null}

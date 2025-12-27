@@ -6,6 +6,7 @@
 
 import { getSupabaseServiceRole } from '@/lib/supabase/client';
 import { getTeamsForLeague } from '@/lib/services/teams';
+import { TierPricingService } from '@/lib/services/tier-pricing';
 
 export interface LeagueInput {
   league_name: string;
@@ -14,6 +15,7 @@ export interface LeagueInput {
   end_date: string;   // YYYY-MM-DD
   tier_id?: string; // references league_tiers
   num_teams?: number;
+  max_participants?: number;
   rest_days?: number;
   auto_rest_day_enabled?: boolean;
   normalize_points_by_capacity?: boolean;
@@ -23,7 +25,7 @@ export interface LeagueInput {
 
 export interface League extends LeagueInput {
   league_id: string;
-  status: 'draft' | 'launched' | 'active' | 'completed';
+  status: 'draft' | 'payment_pending' | 'scheduled' | 'active' | 'ended' | 'completed' | 'cancelled' | 'abandoned';
   is_active: boolean;
   invite_code: string | null;
   created_by: string;
@@ -64,6 +66,15 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
   try {
     const supabase = getSupabaseServiceRole();
 
+    // Determine initial status based on start date
+    const startDate = new Date(data.start_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Default to 'scheduled' if start date is in the future, 'active' if today or past
+    const initialStatus = startDate > today ? 'scheduled' : 'active';
+
     const { data: league, error } = await supabase
       .from('leagues')
       .insert({
@@ -72,13 +83,14 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
         start_date: data.start_date,
         end_date: data.end_date,
         tier_id: data.tier_id || null,
+        tier_snapshot: null, // Will be set by the caller (payment verify)
         num_teams: data.num_teams || 4,
         rest_days: data.rest_days || 1,
         auto_rest_day_enabled: data.auto_rest_day_enabled ?? false,
         is_public: data.is_public || false,
         is_exclusive: data.is_exclusive ?? true,
         invite_code: generateInviteCode(),
-        status: 'draft',
+        status: initialStatus,
         created_by: userId,
       })
       .select()

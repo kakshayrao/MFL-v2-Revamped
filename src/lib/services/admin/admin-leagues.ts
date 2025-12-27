@@ -42,8 +42,7 @@ export async function getAllLeagues(filters?: AdminLeagueFilters): Promise<Admin
     // First get leagues
     let query = supabase
       .from('leagues')
-      .select('*')
-      .order('created_date', { ascending: false });
+      .select('*');
 
     // Apply filters
     if (filters?.search) {

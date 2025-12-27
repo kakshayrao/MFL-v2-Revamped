@@ -1,9 +1,6 @@
-import { PricingForm } from "@/components/admin/pricing-form";
+import { redirect } from 'next/navigation';
 
-// ============================================================================
-// Pricing Page
-// ============================================================================
-
+// This admin pricing page has been removed; redirect to tiers list.
 export default function PricingPage() {
-  return <PricingForm />;
+  redirect('/admin/tiers');
 }

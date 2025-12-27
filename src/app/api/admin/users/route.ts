@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/config';
+import { verifyAdminAccess, checkAdminSession } from '@/lib/auth/admin-verify';
 import {
   getAllUsers,
   createUser,
@@ -15,15 +14,9 @@ import bcrypt from 'bcryptjs';
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = (await getServerSession(authOptions as any)) as import('next-auth').Session | null;
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userRole = (session.user as any)?.platform_role;
-    if (userRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const adminCheck = await checkAdminSession();
+    if (!adminCheck.success) {
+      return NextResponse.json({ error: adminCheck.error }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -51,15 +44,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = (await getServerSession(authOptions as any)) as import('next-auth').Session | null;
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userRole = (session.user as any)?.platform_role;
-    if (userRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const adminCheck = await verifyAdminAccess(req);
+    if (!adminCheck.success) {
+      return NextResponse.json({ error: adminCheck.error }, { status: 403 });
     }
 
     const body = await req.json();
@@ -85,8 +72,7 @@ export async function POST(req: NextRequest) {
       platform_role: platform_role || 'user',
     };
 
-    const adminUserId = (session.user as any)?.id;
-    const user = await createUser(input, adminUserId);
+    const user = await createUser(input, adminCheck.accessToken, adminCheck.userId);
 
     if (!user) {
       return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });

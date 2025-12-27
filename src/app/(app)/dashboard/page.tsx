@@ -168,13 +168,12 @@ export default function DashboardPage() {
 
     const cached = readCache();
     const cacheIsFresh = !!(cached && Date.now() - cached.ts < CACHE_TTL_MS);
-    if (cacheIsFresh) {
-      setRejectedSummary(cached!.value);
-      // If the cached value says "0 rejected", still revalidate once so newly
-      // rejected submissions (triggered by someone else) show up promptly.
-      if ((cached!.value?.totalRejected ?? 0) > 0) {
-        return;
-      }
+
+    // Seed UI from cache for fast paint, but still revalidate so counts drop
+    // right after approvals/resubmits. This avoids stale banners when the
+    // user has already fixed their submissions.
+    if (cacheIsFresh && cached) {
+      setRejectedSummary(cached.value);
     }
 
     let cancelled = false;
@@ -188,7 +187,9 @@ export default function DashboardPage() {
         if (cancelled) return;
 
         if (!res.ok || !json.success) {
-          setRejectedSummary(null);
+          // Preserve cached data when available to avoid blinking to zero on
+          // transient errors; only clear when no cache is present.
+          if (!cacheIsFresh) setRejectedSummary(null);
           return;
         }
 
@@ -203,7 +204,7 @@ export default function DashboardPage() {
           // ignore storage quota / access errors
         }
       } catch {
-        if (!cancelled) setRejectedSummary(null);
+        if (!cancelled && !cacheIsFresh) setRejectedSummary(null);
       }
     })();
 

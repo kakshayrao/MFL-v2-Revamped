@@ -92,6 +92,8 @@ interface LeagueSubmission {
   notes: string | null;
   created_date: string;
   modified_date: string;
+  reupload_of: string | null;
+  rejection_reason: string | null;
   member: {
     user_id: string;
     username: string;
@@ -360,6 +362,9 @@ export default function AllSubmissionsPage({
     return filtered;
   }, [submissions, statusFilter, teamFilter]);
 
+  // Note: Only reupload entries (reupload_of != null) should display the
+  // "Re-submitted" badge. Originals should remain unmarked.
+
   // Format workout type for display
   const formatWorkoutType = (type: string | null) => {
     if (!type) return 'General';
@@ -443,7 +448,17 @@ export default function AllSubmissionsPage({
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <StatusBadge status={row.original.status} />
+          {Boolean(row.original.reupload_of) && (
+            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+              <RefreshCw className="size-2.5 mr-1" />
+              Re-submitted
+            </Badge>
+          )}
+        </div>
+      ),
     },
     {
       id: 'actions',

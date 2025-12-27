@@ -23,6 +23,9 @@ import {
   X,
   ShieldAlert,
   MessageSquare,
+  Upload,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -59,6 +62,10 @@ interface SubmissionDetailDialogProps {
   onReject?: (id: string) => void;
   /** Whether a validation action is in progress */
   isValidating?: boolean;
+  /** Whether this is the owner viewing their own submission */
+  isOwner?: boolean;
+  /** Called when user wants to reupload a rejected submission */
+  onReupload?: (id: string) => void;
 }
 
 // ============================================================================
@@ -200,13 +207,18 @@ export function SubmissionDetailDialog({
   onApprove,
   onReject,
   isValidating = false,
+  isOwner = false,
+  onReupload,
 }: SubmissionDetailDialogProps) {
   if (!submission) return null;
 
   const isPending = submission.status === 'pending';
+  const isRejected = submission.status === 'rejected';
   const showApprove = isPending || (canOverride && submission.status !== 'approved');
   const showReject = isPending || (canOverride && submission.status !== 'rejected');
   const showActions = (showApprove || showReject) && (onApprove || onReject);
+  const showReupload = isOwner && isRejected && onReupload;
+  const isReupload = Boolean(submission.reupload_of);
 
   const isWorkout = submission.type === 'workout';
   const isRestDay = submission.type === 'rest';
@@ -243,7 +255,15 @@ export function SubmissionDetailDialog({
               )}
               {isWorkout ? 'Workout Submission' : 'Rest Day'}
             </DialogTitle>
-            <StatusBadge status={submission.status} />
+            <div className="flex items-center gap-2">
+              {isReupload && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+                  <RefreshCw className="size-3 mr-1" />
+                  Re-submitted
+                </Badge>
+              )}
+              <StatusBadge status={submission.status} />
+            </div>
           </div>
           <DialogDescription className="flex items-center gap-1.5 text-sm">
             <Calendar className="size-3.5" />
@@ -252,6 +272,42 @@ export function SubmissionDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Rejection Alert for Owner */}
+          {isOwner && isRejected && submission.rejection_reason && (
+            <Alert className="border-red-200 bg-red-50 dark:bg-red-950/20">
+              <AlertCircle className="size-4 text-red-600" />
+              <AlertTitle className="text-red-800 dark:text-red-400">
+                Submission Rejected
+              </AlertTitle>
+              <AlertDescription className="text-red-700 dark:text-red-300">
+                <div className="mt-1">
+                  <span className="font-medium">Reason: </span>
+                  {submission.rejection_reason}
+                </div>
+                {showReupload && (
+                  <div className="mt-3">
+                    <p className="text-sm mb-2">
+                      You can resubmit this workout with updated proof or corrections.
+                    </p>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Reupload Info Alert for Reviewers */}
+          {!isOwner && isReupload && (
+            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+              <RefreshCw className="size-4 text-blue-600" />
+              <AlertTitle className="text-blue-800 dark:text-blue-400">
+                Resubmitted After Rejection
+              </AlertTitle>
+              <AlertDescription className="text-blue-700 dark:text-blue-300">
+                This submission was previously rejected and has been resubmitted by the user for review.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Exemption Request Alert */}
           {isExemption && (
             <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
@@ -356,47 +412,47 @@ export function SubmissionDetailDialog({
         </div>
         </div>
 
-        {/* Action Footer for Host/Governor override */}
+        {/* Action Footer for Host/Governor override only */}
         {showActions && (
           <DialogFooter className="px-6 py-4 border-t bg-muted/30">
             <div className="flex w-full items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                {isPending ? 'Review this submission' : 'Override status'}
-              </p>
-              <div className="flex gap-2">
-                {showReject && onReject && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                    onClick={() => onReject(submission.id)}
-                    disabled={isValidating}
-                  >
-                    {isValidating ? (
-                      <Loader2 className="size-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <X className="size-4 mr-1.5" />
-                    )}
-                    {isPending ? 'Reject' : 'Override Reject'}
-                  </Button>
-                )}
-                {showApprove && onApprove && (
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => onApprove(submission.id)}
-                    disabled={isValidating}
-                  >
-                    {isValidating ? (
-                      <Loader2 className="size-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <Check className="size-4 mr-1.5" />
-                    )}
-                    {isPending ? 'Approve' : 'Override Approve'}
-                  </Button>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  {isPending ? 'Review this submission' : 'Override status'}
+                </p>
+                <div className="flex gap-2">
+                  {showReject && onReject && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      onClick={() => onReject(submission.id)}
+                      disabled={isValidating}
+                    >
+                      {isValidating ? (
+                        <Loader2 className="size-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <X className="size-4 mr-1.5" />
+                      )}
+                      {isPending ? 'Reject' : 'Override Reject'}
+                    </Button>
+                  )}
+                  {showApprove && onApprove && (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => onApprove(submission.id)}
+                      disabled={isValidating}
+                    >
+                      {isValidating ? (
+                        <Loader2 className="size-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <Check className="size-4 mr-1.5" />
+                      )}
+                      {isPending ? 'Approve' : 'Override Approve'}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
           </DialogFooter>
         )}
       </DialogContent>

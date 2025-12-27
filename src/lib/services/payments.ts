@@ -32,7 +32,7 @@ export interface Payment {
 
 export interface CreatePaymentInput {
   user_id: string;
-  league_id: string;
+  league_id: string | null; // Nullable when league is created after payment
   razorpay_order_id: string;
   base_amount: number;
   platform_fee: number;

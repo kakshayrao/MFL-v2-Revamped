@@ -579,7 +579,10 @@ export default function LeagueDashboardPage({
     <div className="@container/main flex flex-1 flex-col gap-4 lg:gap-6">
       {rejectedCount > 0 && (
         <div className="px-4 lg:px-6">
-          <Alert>
+          <Alert
+            variant="destructive"
+            className="border-destructive/50 bg-destructive/10"
+          >
             <AlertTitle>Rejected workouts need attention</AlertTitle>
             <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span>

@@ -5,9 +5,9 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import Tesseract from 'tesseract.js';
 import Confetti from 'react-confetti';
 import {
@@ -101,8 +101,13 @@ export default function SubmitActivityPage({
 }) {
   const { id: leagueId } = React.use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { activeLeague } = useLeague();
   const { canSubmitWorkouts } = useRole();
+
+  // Check if this is a resubmission
+  const resubmitId = searchParams.get('resubmit');
+  const isResubmission = !!resubmitId;
 
   // Fetch league activities
   const {
@@ -167,6 +172,54 @@ export default function SubmitActivityPage({
       fetchRestDayStats();
     }
   }, [submissionType, fetchRestDayStats]);
+
+  // Pre-fill form data when resubmitting
+  React.useEffect(() => {
+    if (resubmitId) {
+      const dateParam = searchParams.get('date');
+      const typeParam = searchParams.get('type');
+      const workoutTypeParam = searchParams.get('workout_type');
+      const durationParam = searchParams.get('duration');
+      const distanceParam = searchParams.get('distance');
+      const stepsParam = searchParams.get('steps');
+      const holesParam = searchParams.get('holes');
+      const notesParam = searchParams.get('notes');
+      const proofUrlParam = searchParams.get('proof_url');
+
+      // Set submission type
+      if (typeParam === 'rest') {
+        setSubmissionType('rest');
+      } else {
+        setSubmissionType('workout');
+      }
+
+      // Set date
+      if (dateParam) {
+        try {
+          setActivityDate(parseISO(dateParam));
+        } catch (e) {
+          console.error('Invalid date parameter:', e);
+        }
+      }
+
+      // Set form data
+      setFormData({
+        activity_type: workoutTypeParam || '',
+        duration: durationParam || '',
+        distance: distanceParam || '',
+        steps: stepsParam || '',
+        holes: holesParam || '',
+        notes: notesParam || '',
+      });
+
+      // Set proof URL as image preview (if it's a URL)
+      if (proofUrlParam) {
+        setImagePreview(proofUrlParam);
+      }
+
+      toast.info('Resubmitting rejected workout. Update as needed.');
+    }
+  }, [resubmitId, searchParams]);
 
   // Image upload state - store file in memory until submission
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
@@ -416,6 +469,16 @@ export default function SubmitActivityPage({
       }
       if (formData.holes) {
         payload.holes = parseInt(formData.holes);
+      }
+      
+      // Add notes if provided
+      if (formData.notes) {
+        payload.notes = formData.notes;
+      }
+      
+      // Add reupload_of if this is a resubmission
+      if (resubmitId) {
+        payload.reupload_of = resubmitId;
       }
 
       const response = await fetch('/api/entries/upsert', {

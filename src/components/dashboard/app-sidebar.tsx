@@ -10,6 +10,7 @@ import {
   FileCheck,
   DollarSign,
   Activity,
+  Layers,
   Flag,
   Settings,
   Tag,
@@ -66,9 +67,9 @@ const adminNavItems = [
     icon: DollarSign,
   },
   {
-    title: "Pricing",
-    url: "/admin/pricing",
-    icon: Tag,
+    title: "Tiers",
+    url: "/admin/tiers",
+    icon: Layers,
   },
   {
     title: "Activities",

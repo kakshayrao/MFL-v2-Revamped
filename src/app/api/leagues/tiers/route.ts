@@ -1,76 +1,56 @@
 /**
  * GET /api/leagues/tiers
- * Returns league tiers (basic/medium/pro/custom) along with matching pricing.
- * pricing.id is mapped to league_tiers.tier_id.
+ * Returns all active league tiers with their pricing configuration.
+ * This endpoint is used by the league creation flow to display available tiers.
  */
 
 import { NextResponse } from 'next/server';
-import { getSupabaseServiceRole } from '@/lib/supabase/client';
-
-type TierRow = {
-  tier_id: string;
-  tier_name: string;
-  [key: string]: any;
-};
-
-type PricingRow = {
-  id: string;
-  base_price: number;
-  platform_fee: number;
-  gst_percentage: number;
-  per_day_rate?: number | null;
-  per_participant_rate?: number | null;
-  [key: string]: any;
-};
+import { TierPricingService } from '@/lib/services/tier-pricing';
 
 export async function GET() {
   try {
-    const supabase = getSupabaseServiceRole();
+    // Fetch all active tiers using the TierPricingService
+    const tiers = await TierPricingService.getActiveTiers();
 
-    const { data: tiers, error: tiersError } = await supabase
-      .from('league_tiers')
-      .select('*')
-      .in('tier_name', ['basic', 'medium', 'pro', 'custom']);
-
-    if (tiersError) {
-      console.error('Error fetching league tiers:', tiersError);
-      return NextResponse.json({ error: 'Failed to fetch tiers' }, { status: 500 });
-    }
-
-    const tierRows = (tiers || []) as TierRow[];
-    const tierIds = tierRows.map((t) => t.tier_id).filter(Boolean);
-
-    let pricingRows: PricingRow[] = [];
-    if (tierIds.length) {
-      const { data: pricing, error: pricingError } = await supabase
-        .from('pricing')
-        .select('*')
-        .in('id', tierIds);
-
-      if (pricingError) {
-        console.error('Error fetching pricing for tiers:', pricingError);
-        return NextResponse.json({ error: 'Failed to fetch pricing' }, { status: 500 });
-      }
-
-      pricingRows = (pricing || []) as PricingRow[];
-    }
-
-    const pricingById = new Map(pricingRows.map((p) => [p.id, p] as const));
-
-    const out = tierRows
-      .map((t) => ({
-        ...t,
-        pricing: pricingById.get(t.tier_id) || null,
-      }))
-      // stable ordering
-      .sort((a, b) => {
-        const order = { basic: 1, medium: 2, pro: 3, custom: 4 } as Record<string, number>;
-        return (order[String(a.tier_name)] || 999) - (order[String(b.tier_name)] || 999);
+    if (!tiers || tiers.length === 0) {
+      return NextResponse.json({ 
+        success: true, 
+        data: { tiers: [] },
+        message: 'No active tiers available. Please contact admin.'
       });
+    }
 
-    return NextResponse.json({ success: true, data: { tiers: out } });
+    // Transform to match expected frontend format
+    const transformedTiers = tiers.map(tier => ({
+      tier_id: tier.id,
+      tier_name: tier.name,
+      display_name: tier.display_name,
+      description: tier.description,
+      max_days: tier.max_days,
+      max_participants: tier.max_participants,
+      is_featured: tier.features?.includes?.('featured') || false,
+      features: tier.features || [],
+      pricing: {
+        id: tier.pricing.id,
+        pricing_type: tier.pricing.pricing_type,
+        fixed_price: tier.pricing.fixed_price,
+        base_fee: tier.pricing.base_fee,
+        per_day_rate: tier.pricing.per_day_rate,
+        per_participant_rate: tier.pricing.per_participant_rate,
+        gst_percentage: tier.pricing.gst_percentage,
+      }
+    }));
+
+    return NextResponse.json({ 
+      success: true, 
+      data: { tiers: transformedTiers } 
+    });
+
   } catch (err) {
     console.error('Error in /api/leagues/tiers:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to fetch tiers',
+      message: err instanceof Error ? err.message : 'Internal server error'
+    }, { status: 500 });
   }
 }

@@ -27,6 +27,8 @@ export async function getPricing(): Promise<Pricing | null> {
     .from('pricing')
     .select('*')
     .eq('is_active', true)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {

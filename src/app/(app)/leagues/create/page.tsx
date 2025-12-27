@@ -58,41 +58,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { TierConfig, PriceBreakdown, TierValidationResult } from '@/lib/services/tier-helpers';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface PricingData {
-  basePrice: number;
-  platformFee: number;
-  gstPercentage: number;
-  perDayRate?: number | null;
-  perParticipantRate?: number | null;
-  perDayTotal: number;
-  perParticipantTotal: number;
-  subtotal: number;
-  gst: number;
-  total: number;
-}
-
-type TierApiTier = {
-  tier_id: string;
-  tier_name: string;
-  league_capacity?: number;
-  league_days?: number;
-  duration_days?: number;
-  permitted_days?: number;
-  pricing: {
-    id: string;
-    base_price: number;
-    platform_fee: number;
-    gst_percentage: number;
-    per_day_rate?: number | null;
-    per_participant_rate?: number | null;
-  } | null;
-  [key: string]: any;
-};
 
 declare global {
   interface Window {
@@ -111,7 +81,7 @@ export default function CreateLeaguePage() {
   const [step, setStep] = React.useState<'form' | 'payment' | 'success'>('form');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [pricing, setPricing] = React.useState<PricingData | null>(null);
+  const [pricing, setPricing] = React.useState<PriceBreakdown | null>(null);
   const [pricingLoading, setPricingLoading] = React.useState(true);
   const [createdLeagueId, setCreatedLeagueId] = React.useState<string | null>(null);
   const [showConfetti, setShowConfetti] = React.useState(false);
@@ -119,18 +89,24 @@ export default function CreateLeaguePage() {
 
   // Date state
   const [startDate, setStartDate] = React.useState<Date | undefined>();
+  const [duration, setDuration] = React.useState(30);
+  const [endDate, setEndDate] = React.useState<Date | undefined>();
 
   // Tier state
-  const [tiers, setTiers] = React.useState<TierApiTier[]>([]);
+  const [tiers, setTiers] = React.useState<TierConfig[]>([]);
   const [selectedTierId, setSelectedTierId] = React.useState<string | null>(null);
+  
+  // Price preview state
+  const [pricePreview, setPricePreview] = React.useState<PriceBreakdown | null>(null);
+  const [validation, setValidation] = React.useState<TierValidationResult | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
 
   // Form state
   const [formData, setFormData] = React.useState({
     league_name: '',
     description: '',
     num_teams: '4',
-    total_players: '10',
-    duration_days: '10',
+    max_participants: '20',
     rest_days: '1',
     is_public: false,
     is_exclusive: true,
@@ -158,52 +134,6 @@ export default function CreateLeaguePage() {
     }
   }, [step]);
 
-  const getTierDaysPermitted = React.useCallback((tier: TierApiTier | null): number => {
-    if (!tier) return 0;
-    const raw =
-      tier.league_days_permitted ??
-      tier.days_permitted ??
-      tier.league_days ??
-      tier.duration_days ??
-      tier.permitted_days;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  }, []);
-
-  const computePricingTotals = React.useCallback(
-    (tier: TierApiTier | null, duration: number, capacity: number): PricingData | null => {
-      if (!tier?.pricing) return null;
-
-      const p = tier.pricing;
-      const base = Number(p.base_price) || 0;
-      const platform = Number(p.platform_fee) || 0;
-      const gstPct = Number(p.gst_percentage) || 0;
-      const perDayRate = p.per_day_rate != null ? Number(p.per_day_rate) : null;
-      const perParticipantRate = p.per_participant_rate != null ? Number(p.per_participant_rate) : null;
-
-      const perDayTotal = perDayRate && duration > 0 ? perDayRate * duration : 0;
-      const perParticipantTotal = perParticipantRate && capacity > 0 ? perParticipantRate * capacity : 0;
-
-      const subtotal = base + platform + perDayTotal + perParticipantTotal;
-      const gst = subtotal * (gstPct / 100);
-      const total = subtotal + gst;
-
-      return {
-        basePrice: base,
-        platformFee: platform,
-        gstPercentage: gstPct,
-        perDayRate,
-        perParticipantRate,
-        perDayTotal,
-        perParticipantTotal,
-        subtotal,
-        gst,
-        total,
-      };
-    },
-    []
-  );
-
   const startOfTodayLocal = React.useCallback(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -217,116 +147,103 @@ export default function CreateLeaguePage() {
     }
   }, [startDate, startOfTodayLocal]);
 
-  const computeEndDate = React.useCallback((start: Date, totalDays: number): Date | null => {
-    const days = Number(totalDays);
-    if (!Number.isFinite(days) || days <= 0) return null;
-    const end = new Date(start);
-    // totalDays includes the start day
-    end.setDate(end.getDate() + (days - 1));
-    end.setHours(0, 0, 0, 0);
-    return end;
-  }, []);
-
   const selectedTier = React.useMemo(
     () => tiers.find((t) => t.tier_id === selectedTierId) || null,
     [tiers, selectedTierId]
   );
 
-  const isCustomTier = React.useMemo(
-    () => String(selectedTier?.tier_name ?? '').toLowerCase() === 'custom',
-    [selectedTier?.tier_name]
-  );
-
-  const tierOptions = React.useMemo(() => {
-    const byName = new Map(tiers.map((t) => [String(t.tier_name).toLowerCase(), t] as const));
-    const ordered = ['basic', 'medium', 'pro', 'custom'];
-    return ordered.map((name) => {
-      const found = byName.get(name);
-      return {
-        key: name,
-        label: name.charAt(0).toUpperCase() + name.slice(1),
-        tier: found ?? null,
-      };
-    });
-  }, [tiers]);
-
-  const getTierTotal = React.useCallback((tier: TierApiTier | null): number | null => {
-    const duration = getTierDaysPermitted(tier);
-    const capacity = Number(tier?.league_capacity) || 0;
-    const totals = computePricingTotals(tier, duration, capacity);
-    return totals ? totals.total : null;
-  }, [computePricingTotals, getTierDaysPermitted]);
-
-  const durationDays = React.useMemo(() => {
-    const tierDays = getTierDaysPermitted(selectedTier);
-    if (!isCustomTier) return tierDays;
-    const n = parseInt(formData.duration_days, 10);
-    if (Number.isFinite(n) && n > 0) return n;
-    return tierDays;
-  }, [formData.duration_days, selectedTier, getTierDaysPermitted, isCustomTier]);
-
-  const effectiveStartDate = React.useMemo(() => startDate ?? startOfTodayLocal(), [startDate, startOfTodayLocal]);
-  const computedEndDate = React.useMemo(
-    () => computeEndDate(effectiveStartDate, durationDays),
-    [effectiveStartDate, durationDays, computeEndDate]
-  );
-
-  // Fetch tiers + pricing on mount
+  // Update end date when start date or duration changes
   React.useEffect(() => {
-    const fetchTiersAndPricing = async () => {
+    if (startDate && duration > 0) {
+      const end = new Date(startDate);
+      end.setDate(end.getDate() + duration - 1);
+      end.setHours(0, 0, 0, 0);
+      setEndDate(end);
+    }
+  }, [startDate, duration]);
+
+  // Fetch tiers on mount
+  React.useEffect(() => {
+    const fetchTiers = async () => {
       try {
         const res = await fetch('/api/leagues/tiers');
         const json = await res.json();
-        console.log('Tiers API response:', json);
 
-        const list: TierApiTier[] =
-          json?.success && Array.isArray(json?.data?.tiers) ? (json.data.tiers as TierApiTier[]) : [];
-        
-        // Ensure league_capacity + duration are set (fallback for tiers missing these values)
-        const capacityByName: Record<string, number> = {
-          basic: 10,
-          medium: 30,
-          pro: 60,
-          custom: 100,
-        };
-        const durationByName: Record<string, number> = {
-          basic: 10, // Basic is fixed 10 days
-          medium: 30,
-          pro: 90,
-          custom: 30,
-        };
-        const enrichedList = list.map((t) => {
-          const key = String(t.tier_name).toLowerCase();
-          const fallbackCapacity = capacityByName[key] || 10;
-          const fallbackDuration = durationByName[key];
+        if (!res.ok || !json.success) {
+          console.error('Failed to fetch tiers:', json.error);
+          return;
+        }
 
-          return {
-            ...t,
-            league_capacity: t.league_capacity || fallbackCapacity,
-            duration_days:
-              t.duration_days ?? t.league_days ?? t.permitted_days ?? t.league_days_permitted ?? fallbackDuration,
-          };
-        });
-        
-        console.log('Enriched tiers:', enrichedList);
-        setTiers(enrichedList);
+        const tierList: TierConfig[] = json.data?.tiers || [];
+        setTiers(tierList);
 
-        // Default to basic (or first tier)
-        const basic = list.find((t) => String(t.tier_name).toLowerCase() === 'basic');
-        const initialTier = basic ?? list[0] ?? null;
-        setSelectedTierId(initialTier?.tier_id ?? null);
-
-        const initialDuration = getTierDaysPermitted(initialTier);
-        const initialCapacity = Number(initialTier?.league_capacity) || 0;
-        setPricing(computePricingTotals(initialTier, initialDuration, initialCapacity));
+        // Select first tier by default (sorted by display_order from API)
+        if (tierList.length > 0 && !selectedTierId) {
+          setSelectedTierId(tierList[0].tier_id);
+          // Set default duration based on tier max
+          const defaultDays = Math.min(30, tierList[0].max_days);
+          setDuration(defaultDays);
+          // Set default max participants
+          setFormData(prev => ({
+            ...prev,
+            max_participants: tierList[0].max_participants.toString()
+          }));
+        }
       } catch (err) {
-        console.error('Failed to fetch tiers/pricing:', err);
+        console.error('Failed to fetch tiers:', err);
       } finally {
         setPricingLoading(false);
       }
     };
-    fetchTiersAndPricing();
+    fetchTiers();
   }, []);
+
+  // Fetch price preview when tier, duration, or estimated participants change
+  React.useEffect(() => {
+    if (!selectedTierId || !duration) {
+      setPricePreview(null);
+      setValidation(null);
+      return;
+    }
+
+    const estimatedParticipants = parseInt(formData.max_participants) || parseInt(formData.num_teams) * 5;
+
+    const fetchPreview = async () => {
+      setPreviewLoading(true);
+      try {
+        const res = await fetch('/api/tiers/preview-price', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tier_id: selectedTierId,
+            duration_days: duration,
+            estimated_participants: estimatedParticipants,
+          }),
+        });
+
+        const json = await res.json();
+
+        if (res.ok && json.success) {
+          setPricePreview(json.price_breakdown);
+          setValidation(json.validation);
+        } else {
+          console.error('Price preview failed:', json.error);
+          setPricePreview(null);
+          setValidation(null);
+        }
+      } catch (err) {
+        console.error('Price preview error:', err);
+        setPricePreview(null);
+        setValidation(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+
+    // Debounce price preview requests
+    const timeout = setTimeout(fetchPreview, 500);
+    return () => clearTimeout(timeout);
+  }, [selectedTierId, duration, formData.num_teams, formData.max_participants]);
 
   // Load Razorpay script
   React.useEffect(() => {
@@ -364,8 +281,12 @@ export default function CreateLeaguePage() {
       setError('Please select a tier');
       return;
     }
-    if (!computedEndDate) {
-      setError('Tier configuration is missing league duration');
+    if (!startDate || !endDate) {
+      setError('Please select league dates');
+      return;
+    }
+    if (validation && !validation.valid) {
+      setError('Please fix validation errors before proceeding');
       return;
     }
 
@@ -373,42 +294,25 @@ export default function CreateLeaguePage() {
     setError(null);
 
     try {
-      // Step 1: Create the league first (draft status)
-      const createRes = await fetch('/api/leagues', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          league_name: formData.league_name.trim(),
-          description: formData.description.trim() || null,
-          start_date: format(effectiveStartDate, 'yyyy-MM-dd'),
-          end_date: format(computedEndDate, 'yyyy-MM-dd'),
-          tier_id: selectedTierId,
-          num_teams: parseInt(formData.num_teams),
-          rest_days: parseInt(formData.rest_days),
-          is_public: formData.is_public,
-          is_exclusive: formData.is_exclusive,
-        }),
-      });
+      // Prepare league data for payment
+      const leagueData = {
+        league_name: formData.league_name.trim(),
+        description: formData.description.trim() || null,
+        start_date: format(startDate, 'yyyy-MM-dd'),
+        end_date: format(endDate, 'yyyy-MM-dd'),
+        tier_id: selectedTierId,
+        num_teams: parseInt(formData.num_teams),
+        max_participants: parseInt(formData.max_participants),
+        rest_days: parseInt(formData.rest_days),
+        is_public: formData.is_public,
+        is_exclusive: formData.is_exclusive,
+      };
 
-      const createData = await createRes.json();
-
-      if (!createRes.ok) {
-        throw new Error(createData.error || 'Failed to create league');
-      }
-
-      const leagueId = createData.data?.league_id || createData.league_id;
-      setCreatedLeagueId(leagueId);
-
-      // Step 2: Create Razorpay order
+      // Create Razorpay order with league data
       const orderRes = await fetch('/api/payments/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leagueId,
-          tierId: selectedTierId,
-          durationDays,
-          totalPlayers: tierCapacity,
-        }),
+        body: JSON.stringify({ leagueData }),
       });
 
       const orderData = await orderRes.json();
@@ -417,7 +321,7 @@ export default function CreateLeaguePage() {
         throw new Error(orderData.error || 'Failed to create payment order');
       }
 
-      // Step 3: Open Razorpay checkout
+      // Open Razorpay checkout
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
@@ -427,7 +331,7 @@ export default function CreateLeaguePage() {
         order_id: orderData.orderId,
         handler: async function (response: any) {
           try {
-            // Step 4: Verify payment
+            // Verify payment
             const verifyRes = await fetch('/api/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -442,6 +346,11 @@ export default function CreateLeaguePage() {
 
             if (!verifyRes.ok) {
               throw new Error(verifyData.error || 'Payment verification failed');
+            }
+
+            // Set league ID from verification response
+            if (verifyData.payment?.league_id) {
+              setCreatedLeagueId(verifyData.payment.league_id);
             }
 
             // Success!
@@ -467,37 +376,12 @@ export default function CreateLeaguePage() {
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create league';
-      if (message.includes('duplicate key value') || message.includes('already exists')) {
-        setError('League name already exists. Please choose a different name.');
-      } else {
-        setError(message || 'Failed to create league');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to create league');
       setLoading(false);
     }
   };
 
-  // Calculate league duration
-  const duration =
-    computedEndDate
-      ? Math.ceil(
-          (computedEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24)
-        ) + 1
-      : 0;
-
-  const tierCapacity = React.useMemo(() => {
-    const base = Number(selectedTier?.league_capacity) || 0;
-    if (!isCustomTier) return base;
-    const inputCapacity = parseInt(formData.total_players, 10);
-    return Number.isFinite(inputCapacity) && inputCapacity > 0 ? inputCapacity : base;
-  }, [formData.total_players, selectedTier?.league_capacity, isCustomTier]);
-
-  // Update pricing when tier changes
-  React.useEffect(() => {
-    const totals = computePricingTotals(selectedTier, durationDays, tierCapacity);
-    setPricing(totals);
-  }, [selectedTier, computePricingTotals, durationDays, tierCapacity]);
-
+  const tierCapacity = parseInt(formData.max_participants) || Number(selectedTier?.max_participants) || 0;
   const totalMembers = tierCapacity;
 
   /**
@@ -660,54 +544,76 @@ export default function CreateLeaguePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {tierOptions.map(({ key, label, tier }) => {
-                    const missing = !tier;
-                    const value = missing ? `__missing_${key}` : tier.tier_id;
-                    const total = getTierTotal(tier);
-                    const isSelected = selectedTierId === value;
-                    const capacity = tier?.league_capacity ?? 0;
-                    const basePrice = tier?.pricing?.base_price ? Number(tier.pricing.base_price) : null;
-                    const isCustomCard = key === 'custom';
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {tiers.map((tier) => {
+                    const isSelected = selectedTierId === tier.tier_id;
+                    const isFeatured = tier.is_featured;
 
                     return (
                       <button
-                        key={key}
+                        key={tier.tier_id}
                         type="button"
-                        disabled={missing}
                         onClick={() => {
-                          if (!missing) setSelectedTierId(value);
+                          setSelectedTierId(tier.tier_id);
+                          // Update duration if current exceeds tier max
+                          if (duration > tier.max_days) {
+                            setDuration(tier.max_days);
+                          }
                         }}
                         className={cn(
-                          'relative flex flex-col items-center justify-center gap-1.5 p-4 rounded-xl border-2 transition-all duration-200',
+                          'relative flex flex-col items-start gap-2 p-4 rounded-xl border-2 transition-all duration-200',
                           'hover:border-primary/50 hover:bg-primary/5',
                           isSelected
                             ? 'border-primary bg-primary/10 shadow-md shadow-primary/20'
-                            : 'border-border bg-card',
-                          missing && 'opacity-50 cursor-not-allowed hover:border-border hover:bg-card'
+                            : 'border-border bg-card'
                         )}
                       >
+                        {isFeatured && (
+                          <Badge className="absolute -top-2 -right-2" variant="default">
+                            Featured
+                          </Badge>
+                        )}
                         {isSelected && (
-                          <div className="absolute -top-2 -right-2 size-5 rounded-full bg-primary flex items-center justify-center">
+                          <div className="absolute -top-2 -left-2 size-5 rounded-full bg-primary flex items-center justify-center">
                             <Check className="size-3 text-primary-foreground" />
                           </div>
                         )}
-                        <span className={cn(
-                          'text-base font-semibold',
-                          isSelected && 'text-primary'
-                        )}>
-                          {label}
-                        </span>
-                        <span className={cn(
-                          'text-lg font-bold',
-                          isSelected ? 'text-primary' : 'text-foreground'
-                        )}>
-                          {isCustomCard ? 'Get pricing' : basePrice != null ? `₹${Math.round(basePrice)}` : '—'}
-                        </span>
-                        {!isCustomCard && capacity > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            Up to {capacity} players
+                        
+                        <div className="flex flex-col gap-1 w-full">
+                          <span className={cn(
+                            'text-base font-semibold',
+                            isSelected && 'text-primary'
+                          )}>
+                            {tier.display_name}
                           </span>
+                          
+                          {tier.pricing.pricing_type === 'fixed' && tier.pricing.fixed_price && (
+                            <span className={cn(
+                              'text-lg font-bold',
+                              isSelected ? 'text-primary' : 'text-foreground'
+                            )}>
+                              ₹{Math.round(tier.pricing.fixed_price)}
+                            </span>
+                          )}
+                          
+                          {tier.pricing.pricing_type === 'dynamic' && (
+                            <span className="text-sm text-muted-foreground">
+                              Custom pricing
+                            </span>
+                          )}
+                          
+                          <span className="text-xs text-muted-foreground">
+                            Up to {tier.max_days} days
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {tier.max_participants} participants
+                          </span>
+                        </div>
+
+                        {tier.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {tier.description}
+                          </p>
                         )}
                       </button>
                     );
@@ -767,29 +673,11 @@ export default function CreateLeaguePage() {
                   Choose a start date (required)
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Start Date */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label className="leading-none">Start Date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                            aria-label="Start date guidance"
-                          >
-                            <Info className="size-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 text-sm" align="start">
-                          Set your start date at least 2 days from today so you have time to set up teams and players before kickoff.
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                    <Label>Start Date *</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -815,63 +703,53 @@ export default function CreateLeaguePage() {
                     </Popover>
                   </div>
 
-                  {/* Total Players */}
+                  {/* Duration Selector */}
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-2 leading-none">Total Players</Label>
-                    {isCustomTier ? (
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="e.g., 50"
-                        value={formData.total_players}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, total_players: e.target.value }))
-                        }
-                      />
-                    ) : (
-                      <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
-                        {tierCapacity > 0 ? `${tierCapacity} players` : '—'}
-                      </div>
+                    <Label htmlFor="duration">
+                      League Duration (days) *
+                      {selectedTier && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          Max: {selectedTier.max_days} days
+                        </span>
+                      )}
+                    </Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min={1}
+                      max={selectedTier?.max_days || 365}
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                    {validation && !validation.valid && validation.errors.some(e => e.includes('Duration')) && (
+                      <p className="text-sm text-destructive">
+                        {validation.errors.find(e => e.includes('Duration'))}
+                      </p>
+                    )}
+                    {validation && validation.warnings.some(w => w.includes('Duration')) && (
+                      <p className="text-sm text-yellow-600">
+                        {validation.warnings.find(w => w.includes('Duration'))}
+                      </p>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>End Date</Label>
                     <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
-                      {computedEndDate ? format(computedEndDate, 'PPP') : '—'}
+                      {endDate ? format(endDate, 'PPP') : '—'}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-2 leading-none">Duration (days)</Label>
-                    {isCustomTier ? (
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="e.g., 30"
-                        value={formData.duration_days}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, duration_days: e.target.value }))
-                        }
-                      />
-                    ) : (
-                      <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
-                        {durationDays > 0 ? `${durationDays} days` : '—'}
-                      </div>
-                    )}
+                    <Label>Total Days</Label>
+                    <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
+                      {duration > 0 ? `${duration} days` : '—'}
+                    </div>
                   </div>
                 </div>
-
-                {duration > 0 && (
-                  <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                    <p className="text-sm text-muted-foreground">
-                      League duration:{' '}
-                      <span className="font-semibold text-foreground">{duration} days</span>
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -906,6 +784,35 @@ export default function CreateLeaguePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="max_participants">
+                      Max Participants *
+                      {selectedTier && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          Limit: {selectedTier.max_participants}
+                        </span>
+                      )}
+                    </Label>
+                    <Input
+                      id="max_participants"
+                      type="number"
+                      min={parseInt(formData.num_teams) || 2}
+                      max={selectedTier?.max_participants || 1000}
+                      value={formData.max_participants}
+                      onChange={handleChange}
+                      name="max_participants"
+                      required
+                    />
+                    {validation && !validation.valid && validation.errors.some(e => e.includes('Participants')) && (
+                      <p className="text-sm text-destructive">
+                        {validation.errors.find(e => e.includes('Participants'))}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                   <div className="space-y-2">
                     <Label>Rest Days/Week</Label>
                     <Select
@@ -923,6 +830,13 @@ export default function CreateLeaguePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Avg Team Size</Label>
+                    <div className="h-10 px-3 flex items-center rounded-md border bg-muted text-sm">
+                      {Math.round(tierCapacity / parseInt(formData.num_teams))} players/team
+                    </div>
                   </div>
                 </div>
 
@@ -995,9 +909,7 @@ export default function CreateLeaguePage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Tier</span>
                     <span className="font-medium">
-                      {selectedTier?.tier_name
-                        ? String(selectedTier.tier_name).charAt(0).toUpperCase() + String(selectedTier.tier_name).slice(1)
-                        : '—'}
+                      {selectedTier?.display_name || '—'}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1022,62 +934,77 @@ export default function CreateLeaguePage() {
                   </div>
                 </div>
 
+                <Separator />
+
                 {/* Pricing Section */}
-                <div className="pt-4 border-t">
+                <div>
                   <div className="flex items-center gap-2 mb-3">
                     <CreditCard className="size-4 text-primary" />
                     <span className="font-medium">Payment Details</span>
                   </div>
-                  {pricingLoading ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-6 w-full" />
+                  {previewLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Calculating...</span>
                     </div>
-                  ) : pricing ? (
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span className="opacity-70">Setup fee</span>
-                        <span className="opacity-50">Included</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Platform Fee</span>
-                        <span>₹{pricing.platformFee.toFixed(2)}</span>
-                      </div>
-                      {pricing.perDayTotal > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Per-day ({pricing.perDayRate?.toFixed(2) ?? '0'}) × {durationDays} days
-                          </span>
-                          <span>₹{pricing.perDayTotal.toFixed(2)}</span>
+                  ) : pricePreview ? (
+                    <div className="space-y-2">
+                      {pricePreview.pricing_type === 'dynamic' && pricePreview.breakdown_details && (
+                        <div className="space-y-1 text-xs text-muted-foreground mb-2">
+                          {pricePreview.breakdown_details.map((detail, idx) => (
+                            <p key={idx}>{detail}</p>
+                          ))}
                         </div>
                       )}
-                      {pricing.perParticipantTotal > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Per-participant ({pricing.perParticipantRate?.toFixed(2) ?? '0'}) × {tierCapacity} players
-                          </span>
-                          <span>₹{pricing.perParticipantTotal.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">GST ({pricing.gstPercentage}%)</span>
-                        <span>₹{pricing.gst.toFixed(2)}</span>
+                      
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span>₹{pricePreview.subtotal.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between pt-2 border-t font-semibold text-base">
-                        <span>Total</span>
+                      
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>GST ({pricePreview.pricing_type === 'fixed' && selectedTier?.pricing.gst_percentage ? selectedTier.pricing.gst_percentage : 18}%):</span>
+                        <span>₹{pricePreview.gst_amount.toFixed(2)}</span>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="flex justify-between text-base font-bold">
+                        <span>Total:</span>
                         <span className="text-primary flex items-center">
-                          <IndianRupee className="size-4" />
-                          {pricing.total.toFixed(2)}
+                          <IndianRupee className="size-3 mr-0.5" />
+                          {pricePreview.total.toFixed(2)}
                         </span>
                       </div>
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Pricing not available
+                      Select tier and duration to see pricing
                     </p>
                   )}
                 </div>
+
+                {validation && !validation.valid && (
+                  <div className="rounded-lg bg-destructive/10 p-3 border border-destructive/20">
+                    <h4 className="text-sm font-semibold text-destructive mb-1">Validation Errors</h4>
+                    <ul className="text-xs text-destructive space-y-1">
+                      {validation.errors.map((error, idx) => (
+                        <li key={idx}>• {error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {validation && validation.valid && validation.warnings.length > 0 && (
+                  <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-3 border border-yellow-200 dark:border-yellow-800">
+                    <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-1">Warnings</h4>
+                    <ul className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                      {validation.warnings.map((warning, idx) => (
+                        <li key={idx}>• {warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Error */}
                 {error && (
@@ -1090,7 +1017,7 @@ export default function CreateLeaguePage() {
                 <div className="pt-4 space-y-3">
                   <Button
                     onClick={handleCreateLeague}
-                    disabled={loading || !pricing}
+                    disabled={loading || !pricePreview || !validation?.valid}
                     className="w-full"
                   >
                     {loading ? (

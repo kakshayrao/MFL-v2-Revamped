@@ -28,6 +28,8 @@ export interface MySubmission {
   notes: string | null;
   created_date: string;
   modified_date: string;
+  reupload_of: string | null;
+  rejection_reason: string | null;
 }
 
 // ============================================================================
@@ -95,7 +97,9 @@ export async function GET(
         proof_url,
         notes,
         created_date,
-        modified_date
+        modified_date,
+        reupload_of,
+        rejection_reason
       `)
       .eq('league_member_id', leagueMember.league_member_id)
       .order('date', { ascending: false });

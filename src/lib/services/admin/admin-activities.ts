@@ -85,13 +85,39 @@ export async function getActivityById(activityId: string): Promise<AdminActivity
 
 /**
  * Create a new activity
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function createActivity(
   input: AdminActivityCreateInput,
+  accessToken?: string,
   createdBy?: string
 ): Promise<AdminActivity | null> {
   try {
     const supabase = getSupabaseServiceRole();
+    
+    // Verify admin access if token provided
+    if (accessToken) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+      if (authError || !user) {
+        console.error('Unauthorized: Invalid authentication');
+        return null;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('platform_role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userError || userData?.platform_role !== 'admin') {
+        console.error('Forbidden: Admin access required');
+        return null;
+      }
+      
+      if (!createdBy) {
+        createdBy = user.id;
+      }
+    }
     const { data, error } = await supabase
       .from('activities')
       .insert({
@@ -117,14 +143,40 @@ export async function createActivity(
 
 /**
  * Update an existing activity
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function updateActivity(
   activityId: string,
   input: AdminActivityUpdateInput,
+  accessToken?: string,
   modifiedBy?: string
 ): Promise<AdminActivity | null> {
   try {
     const supabase = getSupabaseServiceRole();
+    
+    // Verify admin access if token provided
+    if (accessToken) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+      if (authError || !user) {
+        console.error('Unauthorized: Invalid authentication');
+        return null;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('platform_role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userError || userData?.platform_role !== 'admin') {
+        console.error('Forbidden: Admin access required');
+        return null;
+      }
+      
+      if (!modifiedBy) {
+        modifiedBy = user.id;
+      }
+    }
     const { data, error } = await supabase
       .from('activities')
       .update({
@@ -152,10 +204,31 @@ export async function updateActivity(
 /**
  * Delete an activity (hard delete since activities don't have is_active)
  * Note: This will fail if activity is referenced by league activities
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
-export async function deleteActivity(activityId: string): Promise<boolean> {
+export async function deleteActivity(activityId: string, accessToken?: string): Promise<boolean> {
   try {
     const supabase = getSupabaseServiceRole();
+    
+    // Verify admin access if token provided
+    if (accessToken) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+      if (authError || !user) {
+        console.error('Unauthorized: Invalid authentication');
+        return false;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('platform_role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userError || userData?.platform_role !== 'admin') {
+        console.error('Forbidden: Admin access required');
+        return false;
+      }
+    }
     const { error } = await supabase
       .from('activities')
       .delete()

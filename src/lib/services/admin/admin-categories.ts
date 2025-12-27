@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { getSupabaseServiceRole } from '@/lib/supabase/client';
 import type { 
   ActivityCategory, 
   ActivityCategoryCreateInput, 
@@ -7,9 +7,10 @@ import type {
 
 /**
  * Get all activity categories
+ * @param accessToken - Optional Supabase access token for admin auth
  */
-export async function getActivityCategories(): Promise<ActivityCategory[]> {
-  const supabase = createServerClient();
+export async function getActivityCategories(accessToken?: string): Promise<ActivityCategory[]> {
+  const supabase = getSupabaseServiceRole();
 
   const { data, error } = await supabase
     .from('activity_categories')
@@ -26,11 +27,13 @@ export async function getActivityCategories(): Promise<ActivityCategory[]> {
 
 /**
  * Get activity category by ID
+ * @param accessToken - Optional Supabase access token for admin auth
  */
 export async function getActivityCategoryById(
-  categoryId: string
+  categoryId: string,
+  accessToken?: string
 ): Promise<ActivityCategory | null> {
-  const supabase = createServerClient();
+  const supabase = getSupabaseServiceRole();
 
   const { data, error } = await supabase
     .from('activity_categories')
@@ -48,11 +51,13 @@ export async function getActivityCategoryById(
 
 /**
  * Create a new activity category
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function createActivityCategory(
-  input: ActivityCategoryCreateInput
+  input: ActivityCategoryCreateInput,
+  accessToken?: string
 ): Promise<ActivityCategory> {
-  const supabase = createServerClient();
+  const supabase = getSupabaseServiceRole();
 
   // Get next display order if not provided
   let displayOrder = input.display_order;
@@ -89,12 +94,14 @@ export async function createActivityCategory(
 
 /**
  * Update an activity category
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
 export async function updateActivityCategory(
   categoryId: string,
-  input: ActivityCategoryUpdateInput
+  input: ActivityCategoryUpdateInput,
+  accessToken?: string
 ): Promise<ActivityCategory> {
-  const supabase = createServerClient();
+  const supabase = getSupabaseServiceRole();
 
   const { data, error } = await supabase
     .from('activity_categories')
@@ -119,9 +126,10 @@ export async function updateActivityCategory(
 
 /**
  * Delete an activity category
+ * @param accessToken - Supabase access token for admin auth (required for RLS)
  */
-export async function deleteActivityCategory(categoryId: string): Promise<void> {
-  const supabase = createServerClient();
+export async function deleteActivityCategory(categoryId: string, accessToken?: string): Promise<void> {
+  const supabase = getSupabaseServiceRole();
 
   // First, check if any activities are using this category
   const { data: activities } = await supabase
@@ -149,9 +157,10 @@ export async function deleteActivityCategory(categoryId: string): Promise<void> 
  * Reorder activity categories
  */
 export async function reorderActivityCategories(
-  categoryIds: string[]
+  categoryIds: string[],
+  accessToken?: string
 ): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getSupabaseServiceRole();
 
   // Update each category with its new display order
   const updates = categoryIds.map((categoryId, index) =>

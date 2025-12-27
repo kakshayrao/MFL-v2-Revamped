@@ -27,6 +27,7 @@ interface EntryPayload {
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
   created_by: string;
+  reupload_of?: string | null;
 }
 
 // ============================================================================
@@ -54,7 +55,8 @@ export async function POST(req: NextRequest) {
       steps,
       holes,
       proof_url,
-      notes
+      notes,
+      reupload_of,
     } = body;
 
     // Validate required fields
@@ -148,6 +150,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Reupload count removed from system; we only link to the original via reupload_of.
+
     // Build entry payload
     const payload: EntryPayload = {
       league_member_id: membership.league_member_id,
@@ -162,6 +166,7 @@ export async function POST(req: NextRequest) {
       notes: notes || null,
       status: 'pending',
       created_by: userId,
+      reupload_of: reupload_of || null,
     };
 
     // Calculate RR value based on activity type
@@ -202,9 +207,10 @@ export async function POST(req: NextRequest) {
     }
 
     // If an entry already exists for the day:
-    // - Block if any existing entry is pending/approved
+    // - If this is a reupload (reupload_of is set), always create a new entry
+    // - Otherwise, block if any existing entry is pending/approved
     // - Allow update/replace only when previous submissions for that day are rejected
-    if (existing) {
+    if (existing && !reupload_of) {
       if (!canReplaceRejected) {
         return NextResponse.json(
           { error: `You already submitted an entry for ${normalizedDate}. You can only resubmit if it was rejected.` },

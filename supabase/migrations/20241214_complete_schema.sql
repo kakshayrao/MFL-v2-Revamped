@@ -68,19 +68,64 @@ COMMENT ON TABLE public.email_otps IS 'Temporary OTP storage for email verificat
 
 CREATE TABLE IF NOT EXISTS public.pricing (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  base_price numeric NOT NULL CHECK (base_price >= 0),
-  platform_fee numeric NOT NULL CHECK (platform_fee >= 0),
+  tier_name text,
+  pricing_type text CHECK (pricing_type IN ('fixed','dynamic')),
+  fixed_price numeric CHECK (fixed_price IS NULL OR fixed_price >= 0),
+  base_fee numeric CHECK (base_fee IS NULL OR base_fee >= 0),
+  per_day_rate numeric CHECK (per_day_rate IS NULL OR per_day_rate >= 0),
+  per_participant_rate numeric CHECK (per_participant_rate IS NULL OR per_participant_rate >= 0),
   gst_percentage numeric NOT NULL CHECK (gst_percentage >= 0 AND gst_percentage <= 100),
   is_active boolean DEFAULT true,
   created_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
   updated_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
-  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  config jsonb DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_pricing_active ON public.pricing(is_active);
+CREATE INDEX IF NOT EXISTS idx_pricing_type ON public.pricing(pricing_type);
+CREATE INDEX IF NOT EXISTS idx_pricing_tier_name ON public.pricing(tier_name);
 
-COMMENT ON TABLE public.pricing IS 'Dynamic pricing configuration for league creation fees';
+COMMENT ON TABLE public.pricing IS 'Admin-configurable pricing: fixed or dynamic models';
+COMMENT ON COLUMN public.pricing.pricing_type IS 'fixed: single price | dynamic: calculated based on days + participants';
+COMMENT ON COLUMN public.pricing.fixed_price IS 'Fixed pricing amount for one-time fee';
+COMMENT ON COLUMN public.pricing.base_fee IS 'Base fee added to dynamic calculations (optional)';
+COMMENT ON COLUMN public.pricing.per_day_rate IS 'Price per day for dynamic pricing';
+COMMENT ON COLUMN public.pricing.per_participant_rate IS 'Price per participant for dynamic pricing';
+COMMENT ON COLUMN public.pricing.config IS 'JSON field for future extensibility (discounts, promotions, regional pricing)';
+
+-- =====================================================================================
+
+CREATE TABLE IF NOT EXISTS public.league_tiers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  display_name text,
+  description text,
+  max_days integer,
+  max_participants integer,
+  pricing_id uuid REFERENCES public.pricing(id) ON DELETE RESTRICT,
+  is_active boolean DEFAULT true,
+  display_order integer DEFAULT 0,
+  features jsonb,
+  created_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_league_tiers_active ON public.league_tiers(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_league_tiers_display_order ON public.league_tiers(display_order);
+CREATE INDEX IF NOT EXISTS idx_league_tiers_pricing ON public.league_tiers(pricing_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_league_tiers_name_lower ON public.league_tiers(LOWER(name));
+
+COMMENT ON TABLE public.league_tiers IS 'Admin-configurable league tiers with pricing and limits - no hardcoded tiers';
+COMMENT ON COLUMN public.league_tiers.name IS 'Unique tier identifier (admin-defined)';
+COMMENT ON COLUMN public.league_tiers.max_days IS 'Maximum league duration allowed for this tier';
+COMMENT ON COLUMN public.league_tiers.max_participants IS 'Maximum participants allowed for this tier';
+COMMENT ON COLUMN public.league_tiers.is_active IS 'Only active tiers are shown to users';
+COMMENT ON COLUMN public.league_tiers.display_order IS 'Order for UI display';
+COMMENT ON COLUMN public.league_tiers.features IS 'JSON array of tier features/perks';
 
 -- =====================================================================================
 -- ROLE & PERMISSION SYSTEM
@@ -109,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.leagues (
   description text,
   start_date date NOT NULL,
   end_date date NOT NULL,
-  status varchar DEFAULT 'draft' CHECK (status IN ('draft', 'launched', 'active', 'completed')),
+  status varchar DEFAULT 'scheduled' CHECK (status IN ('scheduled','active','ended','completed','cancelled','abandoned')),
   is_active boolean DEFAULT true,
   num_teams integer DEFAULT 4 CHECK (num_teams > 0),
   team_size integer DEFAULT 5 CHECK (team_size > 0),
@@ -119,6 +164,12 @@ CREATE TABLE IF NOT EXISTS public.leagues (
   is_exclusive boolean DEFAULT true,
   invite_code varchar UNIQUE,
   normalize_points_by_team_size boolean DEFAULT false,
+  tier_id uuid REFERENCES public.league_tiers(id) ON DELETE RESTRICT,
+  tier_snapshot jsonb,
+  duration_days integer,
+  actual_participants integer,
+  price_paid numeric,
+  payment_status text DEFAULT 'pending' CHECK (payment_status IN ('pending','completed','failed')),
   created_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
   created_date timestamptz DEFAULT CURRENT_TIMESTAMP,
   modified_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
@@ -133,7 +184,11 @@ CREATE INDEX IF NOT EXISTS idx_leagues_public ON public.leagues(is_public) WHERE
 
 COMMENT ON TABLE public.leagues IS 'League instances with start/end dates and status';
 COMMENT ON COLUMN public.leagues.is_active IS 'Soft delete flag - false indicates deactivated league';
-COMMENT ON COLUMN public.leagues.status IS 'League lifecycle: draft → launched → active → completed';
+COMMENT ON COLUMN public.leagues.status IS 'League lifecycle: scheduled → active → ended → completed; includes cancelled and abandoned';
+COMMENT ON COLUMN public.leagues.tier_snapshot IS 'Immutable snapshot of tier config at league creation';
+COMMENT ON COLUMN public.leagues.duration_days IS 'Auto-calculated league duration based on start/end dates';
+COMMENT ON COLUMN public.leagues.actual_participants IS 'Current participant count';
+COMMENT ON COLUMN public.leagues.price_paid IS 'Final price paid for this league';
 COMMENT ON COLUMN public.leagues.auto_rest_day_enabled IS 'When true, missing submissions are auto-marked as rest days via cron';
 COMMENT ON COLUMN public.leagues.normalize_points_by_team_size IS 'When true, points are normalized by team size to account for teams with different number of members';
 
@@ -318,6 +373,8 @@ CREATE TABLE IF NOT EXISTS public.effortentry (
   status effort_status DEFAULT 'pending',
   proof_url varchar,
   notes text,
+  reupload_of uuid REFERENCES public.effortentry(id) ON DELETE SET NULL,
+  rejection_reason text,
   created_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
   created_date timestamptz DEFAULT CURRENT_TIMESTAMP,
   modified_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
@@ -328,9 +385,10 @@ CREATE INDEX IF NOT EXISTS idx_effortentry_member ON public.effortentry(league_m
 CREATE INDEX IF NOT EXISTS idx_effortentry_date ON public.effortentry(date);
 CREATE INDEX IF NOT EXISTS idx_effortentry_status ON public.effortentry(status);
 CREATE INDEX IF NOT EXISTS idx_effortentry_member_date ON public.effortentry(league_member_id, date);
+CREATE INDEX IF NOT EXISTS idx_effortentry_reupload_of ON public.effortentry(reupload_of);
 
 COMMENT ON TABLE public.effortentry IS 'Workout submission entries with proof and validation status';
-COMMENT ON COLUMN public.effortentry.status IS 'Validation state: pending → captain review → approved/rejected';
+COMMENT ON COLUMN public.effortentry.status IS 'Validation state: pending → captain/governor review → approved/rejected';
 
 -- =====================================================================================
 -- CHALLENGES & SPECIAL EVENTS
@@ -343,17 +401,13 @@ CREATE TABLE IF NOT EXISTS public.specialchallenges (
   challenge_type varchar DEFAULT 'individual' CHECK (challenge_type IN ('individual', 'team', 'sub_team')),
   is_custom boolean DEFAULT false,
   payment_id uuid,
-  start_date date NOT NULL,
-  end_date date NOT NULL,
   doc_url varchar,
   created_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
   created_date timestamptz DEFAULT CURRENT_TIMESTAMP,
   modified_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
-  modified_date timestamptz DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT specialchallenges_date_order CHECK (end_date >= start_date)
+  modified_date timestamptz DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_specialchallenges_dates ON public.specialchallenges(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_specialchallenges_type ON public.specialchallenges(challenge_type);
 
 COMMENT ON TABLE public.specialchallenges IS 'Master challenge templates (reusable across leagues)';
@@ -370,7 +424,7 @@ CREATE TABLE IF NOT EXISTS public.leagueschallenges (
   challenge_type varchar DEFAULT 'individual' CHECK (challenge_type IN ('individual', 'team', 'sub_team')),
   total_points numeric NOT NULL DEFAULT 0,
   is_custom boolean DEFAULT false,
-  payment_id uuid,
+  payment_id uuid REFERENCES public.payments(payment_id) ON DELETE SET NULL,
   doc_url varchar,
   start_date date,
   end_date date,
@@ -541,6 +595,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Auto-calculate duration_days on leagues
+CREATE OR REPLACE FUNCTION calculate_duration_days()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.duration_days = (NEW.end_date - NEW.start_date) + 1;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Update actual_participants count on member changes
+CREATE OR REPLACE FUNCTION update_league_participant_count()
+RETURNS TRIGGER AS $$
+DECLARE
+  current_count integer;
+BEGIN
+  SELECT COUNT(*) INTO current_count FROM public.leaguemembers WHERE league_id = COALESCE(NEW.league_id, OLD.league_id);
+  UPDATE public.leagues SET actual_participants = current_count WHERE league_id = COALESCE(NEW.league_id, OLD.league_id);
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
 -- =====================================================================================
 -- TRIGGERS
 -- =====================================================================================
@@ -587,54 +662,22 @@ CREATE TRIGGER payments_updated_at BEFORE UPDATE ON public.payments
 CREATE TRIGGER leagueschallenges_updated_at BEFORE UPDATE ON public.leagueschallenges
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- =====================================================================================
--- SEED DATA
--- =====================================================================================
+-- Calculate duration_days on leagues
+DROP TRIGGER IF EXISTS trigger_calculate_duration_days ON public.leagues;
+CREATE TRIGGER trigger_calculate_duration_days
+  BEFORE INSERT OR UPDATE OF start_date, end_date ON public.leagues
+  FOR EACH ROW EXECUTE FUNCTION calculate_duration_days();
 
-INSERT INTO public.specialchallenges (challenge_id, name, challenge_type, start_date, end_date, created_date)
-VALUES 
-  (
-    gen_random_uuid(),
-    'Daily Steps Challenge',
-    'individual',
-    CURRENT_DATE,
-    CURRENT_DATE + INTERVAL '7 days',
-    CURRENT_TIMESTAMP
-  ),
-  (
-    gen_random_uuid(),
-    'Team Fitness Bingo',
-    'team',
-    CURRENT_DATE,
-    CURRENT_DATE + INTERVAL '14 days',
-    CURRENT_TIMESTAMP
-  ),
-  (
-    gen_random_uuid(),
-    'Unique Workout Day',
-    'individual',
-    CURRENT_DATE,
-    CURRENT_DATE + INTERVAL '30 days',
-    CURRENT_TIMESTAMP
-  ),
-  (
-    gen_random_uuid(),
-    'Sub-Team Leaderboard',
-    'sub_team',
-    CURRENT_DATE,
-    CURRENT_DATE + INTERVAL '30 days',
-    CURRENT_TIMESTAMP
-  )
-ON CONFLICT DO NOTHING;
+-- Update participant count on leaguemembers insert/delete
+DROP TRIGGER IF EXISTS trigger_update_participant_count_insert ON public.leaguemembers;
+DROP TRIGGER IF EXISTS trigger_update_participant_count_delete ON public.leaguemembers;
+CREATE TRIGGER trigger_update_participant_count_insert
+  AFTER INSERT ON public.leaguemembers
+  FOR EACH ROW EXECUTE FUNCTION update_league_participant_count();
+CREATE TRIGGER trigger_update_participant_count_delete
+  AFTER DELETE ON public.leaguemembers
+  FOR EACH ROW EXECUTE FUNCTION update_league_participant_count();
 
-INSERT INTO public.activity_categories (category_name, display_name, description, display_order)
-VALUES 
-  ('fitness', 'Fitness', 'Physical fitness and workout activities', 1),
-  ('wellness', 'Wellness', 'Mental and spiritual wellness activities', 2),
-  ('sports', 'Sports', 'Sports and competitive activities', 3),
-  ('lifestyle', 'Lifestyle', 'Healthy lifestyle and nutrition habits', 4),
-  ('discipline', 'Discipline', 'Time management and professional discipline', 5)
-ON CONFLICT (category_name) DO NOTHING;
 
 -- =====================================================================================
 -- END OF SCHEMA
